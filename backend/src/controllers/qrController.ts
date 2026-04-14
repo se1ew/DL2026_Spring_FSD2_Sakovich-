@@ -1,37 +1,84 @@
 import { Request, Response, NextFunction } from 'express'
 import QRCode from 'qrcode'
+import { qrService } from '../services/qrService'
 import { QrRequest } from '../types/qr'
 
-export const generateQr = async (
+const buildQrOptions = (body: QrRequest): QRCode.QRCodeToDataURLOptions => {
+  return {
+    width: body.size,
+    margin: body.margin,
+    errorCorrectionLevel: body.errorCorrectionLevel,
+    color: {
+      dark: body.color,
+      light: body.background,
+    },
+  }
+}
+
+export const createQr = async (
   req: Request<object, unknown, QrRequest>,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { text, size, format, errorCorrectionLevel, margin } = req.body
+    const { text, format } = req.body
+    const options = buildQrOptions(req.body)
 
-    const opts: QRCode.QRCodeToBufferOptions & QRCode.QRCodeToStringOptions = {
-      width: size,
-      margin,
-      errorCorrectionLevel,
-    }
+    let imageData: string
+    let mimeType: string
 
     if (format === 'svg') {
-      const svg = await QRCode.toString(text, { ...opts, type: 'svg' })
-      res.setHeader('Content-Type', 'image/svg+xml')
-      res.send(svg)
+      imageData = await QRCode.toString(text, { ...options, type: 'svg' })
+      mimeType = 'image/svg+xml'
+    } else {
+      imageData = await QRCode.toDataURL(text, options)
+      mimeType = 'image/png'
+    }
+
+    const qr = await qrService.create({
+      data: text,
+      color: req.body.color,
+      background: req.body.background,
+      size: req.body.size,
+      format,
+      errorCorrectionLevel: req.body.errorCorrectionLevel,
+      margin: req.body.margin,
+      imageUrl: imageData,
+    })
+
+    res.status(201).json({
+      qr,
+      image: imageData,
+      mimeType,
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export const listQr = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const items = await qrService.list()
+    res.json({ items })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export const getQrById = async (
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const qr = await qrService.getById(req.params.id)
+
+    if (!qr) {
+      res.status(404).json({ error: 'QR code not found' })
       return
     }
 
-    if (format === 'base64') {
-      const dataUrl = await QRCode.toDataURL(text, opts)
-      res.json({ data: dataUrl, format: 'base64' })
-      return
-    }
-
-    const buffer = await QRCode.toBuffer(text, opts)
-    res.setHeader('Content-Type', 'image/png')
-    res.send(buffer)
+    res.json(qr)
   } catch (err) {
     next(err)
   }

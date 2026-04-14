@@ -6,6 +6,16 @@ export const QrRequestSchema = z.object({
   format: z.enum(['png', 'svg', 'base64']).optional().default('png'),
   errorCorrectionLevel: z.enum(['L', 'M', 'Q', 'H']).optional().default('M'),
   margin: z.number().int().min(0).max(10).optional().default(2),
+  color: z
+    .string()
+    .regex(/^#([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6})$/, 'color must be a hex value')
+    .optional()
+    .default('#000000'),
+  background: z
+    .string()
+    .regex(/^#([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6})$/, 'background must be a hex value')
+    .optional()
+    .default('#ffffff'),
 })
 
 export type QrRequest = z.infer<typeof QrRequestSchema>

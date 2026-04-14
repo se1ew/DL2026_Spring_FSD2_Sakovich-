@@ -1,8 +1,10 @@
 import { Router } from 'express'
-import { generateQr } from '../controllers/qrController'
+import { createQr, getQrById, listQr } from '../controllers/qrController'
 import { validate } from '../middleware/validate'
 import { QrRequestSchema } from '../types/qr'
 
 export const router = Router()
 
-router.post('/', validate(QrRequestSchema), generateQr)
+router.post('/', validate(QrRequestSchema), createQr)
+router.get('/', listQr)
+router.get('/:id', getQrById)
