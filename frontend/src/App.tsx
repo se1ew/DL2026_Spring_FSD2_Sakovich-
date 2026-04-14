@@ -1,21 +1,17 @@
-import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from 'react'
+import {
+  type ChangeEvent,
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import QRCode from 'qrcode'
 import './App.css'
+import { REUSE_EVENT_NAME } from './constants/events'
+import { type QrHistoryItem } from './types/qr'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
-
-type QrHistoryItem = {
-  id: string
-  data: string
-  color: string
-  background: string
-  size: number
-  format: string
-  errorCorrectionLevel?: string | null
-  margin?: number | null
-  imageUrl: string
-  createdAt: string
-}
 
 type PreviewState = {
   image: string
@@ -56,6 +52,8 @@ const normalizeImage = (raw: string, mimeType: string) => {
   }
   return raw
 }
+
+const normalizeHistoryFormat = (value?: string): QrFormat => (value === 'svg' ? 'svg' : 'png')
 
 function App() {
   const [form, setForm] = useState<FormState>({
@@ -159,9 +157,7 @@ function App() {
     }
   }
 
-  const normalizeHistoryFormat = (value?: string): QrFormat => (value === 'svg' ? 'svg' : 'png')
-
-  const handleHistorySelect = (item: QrHistoryItem) => {
+  const applyHistoryItem = useCallback((item: QrHistoryItem) => {
     const mimeType = item.imageUrl.trim().startsWith('<svg')
       ? 'image/svg+xml'
       : 'image/png'
@@ -183,6 +179,10 @@ function App() {
         (item.errorCorrectionLevel as 'L' | 'M' | 'Q' | 'H') ?? prev.errorCorrectionLevel,
       margin: item.margin ?? prev.margin,
     }))
+  }, [])
+
+  const handleHistorySelect = (item: QrHistoryItem) => {
+    applyHistoryItem(item)
   }
 
   const handleCopyLink = async () => {
@@ -235,6 +235,21 @@ function App() {
       size: preview.qr.size,
     }
   }, [preview])
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<QrHistoryItem | undefined>).detail
+      if (detail) {
+        applyHistoryItem(detail)
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }
+    }
+
+    window.addEventListener(REUSE_EVENT_NAME, handler as EventListener)
+    return () => {
+      window.removeEventListener(REUSE_EVENT_NAME, handler as EventListener)
+    }
+  }, [applyHistoryItem])
 
   useEffect(() => {
     if (!form.text.trim()) {
