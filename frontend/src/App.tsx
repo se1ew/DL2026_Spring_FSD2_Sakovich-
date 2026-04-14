@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from 'react'
+import QRCode from 'qrcode'
 import './App.css'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
@@ -22,6 +23,23 @@ type PreviewState = {
   qr?: QrHistoryItem
 }
 
+type ClientPreview = {
+  png?: string
+  svg?: string
+}
+
+type QrFormat = 'png' | 'svg'
+
+type FormState = {
+  text: string
+  format: QrFormat
+  size: number
+  color: string
+  background: string
+  errorCorrectionLevel: 'L' | 'M' | 'Q' | 'H'
+  margin: number
+}
+
 const formatDate = (value?: string) => {
   if (!value) return '—'
   return new Intl.DateTimeFormat('ru-RU', {
@@ -40,7 +58,7 @@ const normalizeImage = (raw: string, mimeType: string) => {
 }
 
 function App() {
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<FormState>({
     text: '',
     format: 'png',
     size: 320,
@@ -55,8 +73,11 @@ function App() {
   const [history, setHistory] = useState<QrHistoryItem[]>([])
   const [historyLoading, setHistoryLoading] = useState(true)
   const [preview, setPreview] = useState<PreviewState | null>(null)
+  const [clientPreview, setClientPreview] = useState<ClientPreview>({})
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'success' | 'error'>('idle')
 
-  const hasResult = Boolean(preview?.image)
+  const hasServerResult = Boolean(preview?.image)
+  const hasLivePreview = Boolean(clientPreview.png)
 
   const loadHistory = async () => {
     setHistoryLoading(true)
@@ -83,16 +104,18 @@ function App() {
     loadHistory()
   }, [])
 
-  const handleInputChange = (
-    key: keyof typeof form,
-    parser: (value: string) => string | number = (value) => value,
-  ) =>
-    (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-      const value = parser(event.target.value)
+  const handleInputChange =
+    <K extends keyof FormState>(
+      key: K,
+      parser?: (value: string) => FormState[K],
+    ) =>
+    (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+      const rawValue = event.target.value
+      const value = parser ? parser(rawValue) : (rawValue as FormState[K])
       setForm((prev) => ({ ...prev, [key]: value }))
     }
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
     if (!form.text.trim()) {
@@ -136,6 +159,8 @@ function App() {
     }
   }
 
+  const normalizeHistoryFormat = (value?: string): QrFormat => (value === 'svg' ? 'svg' : 'png')
+
   const handleHistorySelect = (item: QrHistoryItem) => {
     const mimeType = item.imageUrl.trim().startsWith('<svg')
       ? 'image/svg+xml'
@@ -146,16 +171,57 @@ function App() {
       mimeType,
       qr: item,
     })
+
+    setForm((prev) => ({
+      ...prev,
+      text: item.data,
+      format: normalizeHistoryFormat(item.format),
+      size: item.size,
+      color: item.color,
+      background: item.background,
+      errorCorrectionLevel:
+        (item.errorCorrectionLevel as 'L' | 'M' | 'Q' | 'H') ?? prev.errorCorrectionLevel,
+      margin: item.margin ?? prev.margin,
+    }))
   }
 
-  const handleDownload = () => {
-    if (!preview) return
+  const handleCopyLink = async () => {
+    const link = preview?.image ?? clientPreview.png
+    if (!link) return
 
-    const extension = preview.mimeType.includes('svg') ? 'svg' : 'png'
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopyStatus('success')
+      setTimeout(() => setCopyStatus('idle'), 1500)
+    } catch (error) {
+      console.error(error)
+      setCopyStatus('error')
+      setTimeout(() => setCopyStatus('idle'), 2000)
+    }
+  }
+
+  const downloadData = (dataUrl: string, fileName: string) => {
     const link = document.createElement('a')
-    link.href = preview.image
-    link.download = `qr-${preview.qr?.id ?? 'code'}.${extension}`
+    link.href = dataUrl
+    link.download = fileName
     link.click()
+  }
+
+  const handleDownloadPng = () => {
+    const png = clientPreview.png ?? (preview?.mimeType.includes('png') ? preview.image : null)
+    if (!png) return
+    downloadData(png, 'qr-code.png')
+  }
+
+  const handleDownloadSvg = () => {
+    const svgRaw = clientPreview.svg
+    const svgFromServer = preview?.mimeType.includes('svg') ? preview.image : null
+    const svgData = svgRaw
+      ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgRaw)}`
+      : svgFromServer
+
+    if (!svgData) return
+    downloadData(svgData, 'qr-code.svg')
   }
 
   const latestCreatedAt = preview?.qr?.createdAt ?? history[0]?.createdAt
@@ -169,6 +235,54 @@ function App() {
       size: preview.qr.size,
     }
   }, [preview])
+
+  useEffect(() => {
+    if (!form.text.trim()) {
+      setClientPreview({})
+      return
+    }
+
+    let cancelled = false
+    const options: QRCode.QRCodeToDataURLOptions = {
+      width: form.size,
+      margin: form.margin,
+      errorCorrectionLevel: form.errorCorrectionLevel as QRCode.QRCodeErrorCorrectionLevel,
+      color: {
+        dark: form.color,
+        light: form.background,
+      },
+    }
+
+    const generate = async () => {
+      try {
+        const [png, svg] = await Promise.all([
+          QRCode.toDataURL(form.text, options),
+          QRCode.toString(form.text, { ...options, type: 'svg' }),
+        ])
+
+        if (!cancelled) {
+          setClientPreview({ png, svg })
+        }
+      } catch (error) {
+        console.error('Не удалось построить live preview', error)
+      }
+    }
+
+    generate()
+
+    return () => {
+      cancelled = true
+    }
+  }, [form.text, form.size, form.margin, form.color, form.background, form.errorCorrectionLevel])
+
+  const previewImage = clientPreview.png ?? preview?.image ?? ''
+
+  const copyButtonLabel =
+    copyStatus === 'success'
+      ? 'Скопировано!'
+      : copyStatus === 'error'
+        ? 'Ошибка'
+        : 'Скопировать ссылку'
 
   return (
     <div className="app-shell">
@@ -202,7 +316,10 @@ function App() {
             <div className="field-grid">
               <label className="field">
                 <span>Формат</span>
-                <select value={form.format} onChange={handleInputChange('format')}>
+                <select
+                  value={form.format}
+                  onChange={handleInputChange('format', (value) => (value === 'svg' ? 'svg' : 'png'))}
+                >
                   <option value="png">PNG (по умолчанию)</option>
                   <option value="svg">SVG</option>
                 </select>
@@ -216,7 +333,7 @@ function App() {
                   max={600}
                   step={20}
                   value={form.size}
-                  onChange={handleInputChange('size', Number)}
+                  onChange={handleInputChange('size', (value) => Number(value) as FormState['size'])}
                 />
               </label>
             </div>
@@ -255,7 +372,7 @@ function App() {
                 <span>Коррекция ошибок</span>
                 <select
                   value={form.errorCorrectionLevel}
-                  onChange={handleInputChange('errorCorrectionLevel')}
+                  onChange={handleInputChange('errorCorrectionLevel', (value) => value as FormState['errorCorrectionLevel'])}
                 >
                   <option value="L">L — до 7%</option>
                   <option value="M">M — до 15%</option>
@@ -272,7 +389,7 @@ function App() {
                   max={10}
                   step={1}
                   value={form.margin}
-                  onChange={handleInputChange('margin', Number)}
+                  onChange={handleInputChange('margin', (value) => Number(value) as FormState['margin'])}
                 />
               </label>
             </div>
@@ -288,12 +405,19 @@ function App() {
         <section className="panel preview-panel">
           <div className="panel-head">
             <h2>Предпросмотр</h2>
-            <p>{hasResult ? 'Обновлённые данные доступны ниже.' : 'Создайте QR, чтобы увидеть результат.'}</p>
+            <p>
+              {hasLivePreview
+                ? 'Live preview обновляется при изменении параметров.'
+                : 'Введите текст, чтобы увидеть лайв-превью и сгенерировать QR.'}
+            </p>
           </div>
 
           <div className="preview-stage">
-            {hasResult ? (
-              <img src={preview?.image} alt="Предпросмотр QR-кода" />
+            {previewImage ? (
+              <>
+                <img src={previewImage} alt="Предпросмотр QR-кода" />
+                <span className="badge live">Live</span>
+              </>
             ) : (
               <div className="preview-placeholder">
                 <p>Здесь появится ваш QR</p>
@@ -316,9 +440,32 @@ function App() {
             </div>
           </div>
 
-          <button className="ghost" type="button" onClick={handleDownload} disabled={!hasResult}>
-            Скачать изображение
-          </button>
+          <div className="preview-actions">
+            <button
+              className="primary subtle"
+              type="button"
+              onClick={handleDownloadPng}
+              disabled={!clientPreview.png && !hasServerResult}
+            >
+              Скачать PNG
+            </button>
+            <button
+              className="primary subtle"
+              type="button"
+              onClick={handleDownloadSvg}
+              disabled={!clientPreview.svg && !hasServerResult}
+            >
+              Скачать SVG
+            </button>
+            <button
+              className="ghost"
+              type="button"
+              onClick={handleCopyLink}
+              disabled={!clientPreview.png && !hasServerResult}
+            >
+              {copyButtonLabel}
+            </button>
+          </div>
         </section>
       </main>
 

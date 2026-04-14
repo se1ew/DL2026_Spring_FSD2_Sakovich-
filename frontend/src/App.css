@@ -155,6 +155,18 @@
   box-shadow: 0 10px 20px rgba(170, 59, 255, 0.25);
 }
 
+.primary.subtle {
+  background: rgba(170, 59, 255, 0.12);
+  color: var(--text-h);
+  border: 1px solid rgba(170, 59, 255, 0.2);
+  box-shadow: none;
+}
+
+.primary.subtle:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .primary:disabled {
   opacity: 0.65;
   cursor: not-allowed;
@@ -172,6 +184,11 @@
   color: var(--text-h);
 }
 
+.ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .preview-panel {
   display: flex;
   flex-direction: column;
@@ -187,12 +204,34 @@
   border: 1px dashed rgba(8, 6, 13, 0.15);
   padding: 24px;
   background: rgba(255, 255, 255, 0.6);
+  position: relative;
+  overflow: hidden;
 }
 
 .preview-stage img {
   max-width: 100%;
   height: auto;
   object-fit: contain;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.badge.live {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: rgba(170, 59, 255, 0.15);
+  color: #6b00c8;
+  border: 1px solid rgba(170, 59, 255, 0.3);
 }
 
 .preview-placeholder {
@@ -222,6 +261,13 @@
 .preview-meta strong {
   font-size: 18px;
   color: var(--text-h);
+}
+
+.preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
 }
 
 .history-panel .history-list {
