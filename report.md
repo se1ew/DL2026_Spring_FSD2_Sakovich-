@@ -1,0 +1,3 @@
+# Report
+
+Project initialized.
