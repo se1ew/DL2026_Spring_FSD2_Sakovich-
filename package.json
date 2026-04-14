@@ -1,0 +1,33 @@
+{
+  "name": "qr-code-generator",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Monorepo for the fullstack QR Code Generator",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "lint": "eslint \"{frontend,backend}/src/**/*.{ts,tsx}\"",
+    "format": "prettier --write .",
+    "lint:frontend": "npm run lint --workspace=frontend",
+    "lint:backend": "npm run lint --workspace=backend"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/se1ew/DL2026_Spring_FSD2_Sakovich-.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/se1ew/DL2026_Spring_FSD2_Sakovich-/issues"
+  },
+  "homepage": "https://github.com/se1ew/DL2026_Spring_FSD2_Sakovich-#readme",
+  "devDependencies": {
+    "prettier": "^3.3.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
