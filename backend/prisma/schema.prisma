@@ -22,6 +22,21 @@ model QrCode {
   margin    Int?
   imageUrl  String   @map("image_url") @db.Text
   createdAt DateTime @default(now()) @map("created_at")
+  userId    String   @map("user_id") @db.Uuid
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("qr_codes")
+  @@index([userId])
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  qrCodes QrCode[]
+
+  @@map("users")
 }

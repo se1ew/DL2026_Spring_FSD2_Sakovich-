@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { REUSE_EVENT_NAME } from '../constants/events'
 import { type QrHistoryItem } from '../types/qr'
+import { useAuth } from '../hooks/useAuth'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
@@ -9,16 +10,25 @@ export type HistoryPageProps = {
 }
 
 export const HistoryPage = ({ onBack }: HistoryPageProps) => {
+  const { token } = useAuth()
   const [items, setItems] = useState<QrHistoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<QrHistoryItem | null>(null)
 
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch(`${API_BASE_URL}/api/qr`)
+      if (!token) {
+        throw new Error('Сессия недействительна')
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/qr`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
       const payload = await response.json()
 
       if (!response.ok) {
@@ -31,11 +41,11 @@ export const HistoryPage = ({ onBack }: HistoryPageProps) => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [token])
 
   useEffect(() => {
     loadHistory()
-  }, [])
+  }, [loadHistory])
 
   const empty = !loading && items.length === 0
 

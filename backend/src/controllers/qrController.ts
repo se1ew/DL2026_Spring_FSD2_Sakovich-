@@ -21,6 +21,12 @@ export const createQr = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    const userId = req.user?.userId
+    if (!userId) {
+      res.status(401).json({ error: 'Не авторизован' })
+      return
+    }
+
     const { text, format } = req.body
     const options = buildQrOptions(req.body)
 
@@ -44,6 +50,7 @@ export const createQr = async (
       errorCorrectionLevel: req.body.errorCorrectionLevel,
       margin: req.body.margin,
       imageUrl: imageData,
+      userId,
     })
 
     res.status(201).json({
@@ -56,9 +63,15 @@ export const createQr = async (
   }
 }
 
-export const listQr = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const listQr = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const items = await qrService.list()
+    const userId = req.user?.userId
+    if (!userId) {
+      res.status(401).json({ error: 'Не авторизован' })
+      return
+    }
+
+    const items = await qrService.list(userId)
     res.json({ items })
   } catch (err) {
     next(err)
@@ -71,7 +84,13 @@ export const getQrById = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const qr = await qrService.getById(req.params.id)
+    const userId = req.user?.userId
+    if (!userId) {
+      res.status(401).json({ error: 'Не авторизован' })
+      return
+    }
+
+    const qr = await qrService.getById(req.params.id, userId)
 
     if (!qr) {
       res.status(404).json({ error: 'QR code not found' })

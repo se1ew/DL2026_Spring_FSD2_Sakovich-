@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
+import { router as authRouter } from './routes/auth'
 import { router as qrRouter } from './routes/qr'
 import { errorHandler } from './middleware/errorHandler'
 
@@ -16,6 +17,7 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok' })
 })
 
+app.use('/api/auth', authRouter)
 app.use('/api/qr', qrRouter)
 
 app.use(errorHandler)

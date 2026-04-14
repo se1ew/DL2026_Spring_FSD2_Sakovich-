@@ -9,6 +9,7 @@ export type CreateQrPayload = {
   errorCorrectionLevel?: string
   margin?: number
   imageUrl: string
+  userId: string
 }
 
 export const qrService = {
@@ -23,17 +24,19 @@ export const qrService = {
         errorCorrectionLevel: payload.errorCorrectionLevel,
         margin: payload.margin,
         imageUrl: payload.imageUrl,
+        userId: payload.userId,
       },
     })
   },
 
-  async list() {
+  async list(userId: string) {
     return prisma.qrCode.findMany({
+      where: { userId },
       orderBy: { createdAt: 'desc' },
     })
   },
 
-  async getById(id: string) {
-    return prisma.qrCode.findUnique({ where: { id } })
+  async getById(id: string, userId: string) {
+    return prisma.qrCode.findFirst({ where: { id, userId } })
   },
 }

@@ -10,6 +10,7 @@ import QRCode from 'qrcode'
 import './App.css'
 import { REUSE_EVENT_NAME } from './constants/events'
 import { type QrHistoryItem } from './types/qr'
+import { useAuth } from './hooks/useAuth'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
@@ -56,6 +57,7 @@ const normalizeImage = (raw: string, mimeType: string) => {
 const normalizeHistoryFormat = (value?: string): QrFormat => (value === 'svg' ? 'svg' : 'png')
 
 function App() {
+  const { token } = useAuth()
   const [form, setForm] = useState<FormState>({
     text: '',
     format: 'png',
@@ -77,11 +79,15 @@ function App() {
   const hasServerResult = Boolean(preview?.image)
   const hasLivePreview = Boolean(clientPreview.png)
 
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
+    if (!token) return
+
     setHistoryLoading(true)
     setHistoryError(null)
     try {
-      const response = await fetch(`${API_BASE_URL}/api/qr`)
+      const response = await fetch(`${API_BASE_URL}/api/qr`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
       const payload = await response.json()
 
       if (!response.ok) {
@@ -90,17 +96,17 @@ function App() {
 
       setHistory(payload.items ?? [])
     } catch (error) {
-      setHistoryError(
+      const message =
         error instanceof Error ? error.message : 'Не удалось загрузить историю'
-      )
+      setHistoryError(message)
     } finally {
       setHistoryLoading(false)
     }
-  }
+  }, [token])
 
   useEffect(() => {
     loadHistory()
-  }, [])
+  }, [loadHistory])
 
   const handleInputChange =
     <K extends keyof FormState>(
@@ -121,13 +127,21 @@ function App() {
       return
     }
 
+    if (!token) {
+      setFormError('Сессия недействительна, войдите заново')
+      return
+    }
+
     setIsSubmitting(true)
     setFormError(null)
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/qr`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           ...form,
           size: Number(form.size),
