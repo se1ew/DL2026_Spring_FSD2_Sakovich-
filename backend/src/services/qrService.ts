@@ -1,3 +1,5 @@
+import type { QrCode } from '@prisma/client'
+import { redis, buildHistoryCacheKey } from '../lib/redis'
 import { prisma } from '../lib/prisma'
 
 export type CreateQrPayload = {
@@ -12,9 +14,52 @@ export type CreateQrPayload = {
   userId: string
 }
 
+const HISTORY_TTL_SECONDS = Number(process.env.REDIS_HISTORY_TTL ?? '60')
+
+const safeParseHistory = (raw: string | null): QrCode[] | null => {
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as QrCode[]
+  } catch {
+    return null
+  }
+}
+
+const getCacheKey = (userId: string) => buildHistoryCacheKey(userId)
+
+const readCachedHistory = async (userId: string): Promise<QrCode[] | null> => {
+  const cacheKey = getCacheKey(userId)
+  try {
+    const cached = await redis.get(cacheKey)
+    const parsed = safeParseHistory(cached)
+    if (!parsed && cached) {
+      await redis.del(cacheKey)
+    }
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+const cacheHistory = async (userId: string, items: QrCode[]): Promise<void> => {
+  try {
+    await redis.set(getCacheKey(userId), JSON.stringify(items), 'EX', HISTORY_TTL_SECONDS)
+  } catch {
+    // cache is optional
+  }
+}
+
+const invalidateHistoryCache = async (userId: string): Promise<void> => {
+  try {
+    await redis.del(getCacheKey(userId))
+  } catch {
+    // cache is optional
+  }
+}
+
 export const qrService = {
   async create(payload: CreateQrPayload) {
-    return prisma.qrCode.create({
+    const qr = await prisma.qrCode.create({
       data: {
         data: payload.data,
         color: payload.color,
@@ -27,12 +72,24 @@ export const qrService = {
         userId: payload.userId,
       },
     })
+
+    void invalidateHistoryCache(payload.userId)
+
+    return qr
   },
 
   async list(userId: string) {
+    const cached = await readCachedHistory(userId)
+    if (cached) {
+      return cached
+    }
+
     return prisma.qrCode.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
+    }).then((items) => {
+      void cacheHistory(userId, items)
+      return items
     })
   },
 

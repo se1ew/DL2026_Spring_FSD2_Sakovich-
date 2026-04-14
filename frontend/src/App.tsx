@@ -4,15 +4,18 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 import QRCode from 'qrcode'
+import { io, type Socket } from 'socket.io-client'
 import './App.css'
-import { REUSE_EVENT_NAME } from './constants/events'
+import { HISTORY_UPDATED_EVENT, QR_CREATED_EVENT, REUSE_EVENT_NAME } from './constants/events'
 import { type QrHistoryItem } from './types/qr'
 import { useAuth } from './hooks/useAuth'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+const MAX_HISTORY_ITEMS = 50
 
 type PreviewState = {
   image: string
@@ -75,9 +78,18 @@ function App() {
   const [preview, setPreview] = useState<PreviewState | null>(null)
   const [clientPreview, setClientPreview] = useState<ClientPreview>({})
   const [copyStatus, setCopyStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const socketRef = useRef<Socket | null>(null)
 
   const hasServerResult = Boolean(preview?.image)
   const hasLivePreview = Boolean(clientPreview.png)
+
+  const mergeHistoryItem = useCallback((item: QrHistoryItem) => {
+    setHistory((prev) => {
+      const filtered = prev.filter((entry) => entry.id !== item.id)
+      const next = [item, ...filtered]
+      return next.slice(0, MAX_HISTORY_ITEMS)
+    })
+  }, [])
 
   const loadHistory = useCallback(async () => {
     if (!token) return
@@ -94,7 +106,8 @@ function App() {
         throw new Error(payload.error || 'Не удалось загрузить историю')
       }
 
-      setHistory(payload.items ?? [])
+      const items: QrHistoryItem[] = payload.items ?? []
+      setHistory(items.slice(0, MAX_HISTORY_ITEMS))
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Не удалось загрузить историю'
@@ -107,6 +120,42 @@ function App() {
   useEffect(() => {
     loadHistory()
   }, [loadHistory])
+
+  useEffect(() => {
+    if (!token) {
+      if (socketRef.current) {
+        socketRef.current.disconnect()
+        socketRef.current = null
+      }
+      return
+    }
+
+    const socket = io(API_BASE_URL, {
+      auth: { token },
+      transports: ['websocket'],
+    })
+
+    socketRef.current = socket
+
+    const handleQrCreated = (item: QrHistoryItem) => {
+      mergeHistoryItem(item)
+      const historyEvent = new CustomEvent<QrHistoryItem>(HISTORY_UPDATED_EVENT, {
+        detail: item,
+      })
+      window.dispatchEvent(historyEvent)
+    }
+
+    socket.on(QR_CREATED_EVENT, handleQrCreated)
+    socket.on('connect_error', (error) => {
+      console.warn('Realtime connection error', error)
+    })
+
+    return () => {
+      socket.off(QR_CREATED_EVENT, handleQrCreated)
+      socket.disconnect()
+      socketRef.current = null
+    }
+  }, [token, mergeHistoryItem])
 
   const handleInputChange =
     <K extends keyof FormState>(

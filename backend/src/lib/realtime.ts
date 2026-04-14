@@ -35,7 +35,7 @@ export const initRealtime = (server: HttpServer): Server => {
       const payload = jwt.verify(token, process.env.JWT_SECRET as string) as JwtPayload
       socket.data.userId = payload.userId
       next()
-    } catch (error) {
+    } catch {
       next(new Error('Unauthorized'))
     }
   })

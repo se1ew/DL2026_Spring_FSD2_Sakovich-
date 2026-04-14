@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { REUSE_EVENT_NAME } from '../constants/events'
+import { HISTORY_UPDATED_EVENT, REUSE_EVENT_NAME } from '../constants/events'
 import { type QrHistoryItem } from '../types/qr'
 import { useAuth } from '../hooks/useAuth'
 
@@ -48,6 +48,25 @@ export const HistoryPage = ({ onBack }: HistoryPageProps) => {
   }, [loadHistory])
 
   const empty = !loading && items.length === 0
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<QrHistoryItem | undefined>).detail
+      if (!detail) return
+
+      setItems((prev) => {
+        const filtered = prev.filter((item) => item.id !== detail.id)
+        return [detail, ...filtered]
+      })
+
+      setSelected((prev) => prev ?? detail)
+    }
+
+    window.addEventListener(HISTORY_UPDATED_EVENT, handler as EventListener)
+    return () => {
+      window.removeEventListener(HISTORY_UPDATED_EVENT, handler as EventListener)
+    }
+  }, [])
 
   useEffect(() => {
     if (!loading && !selected && items.length > 0) {

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import QRCode from 'qrcode'
 import { qrService } from '../services/qrService'
+import { emitQrCreated } from '../lib/realtime'
 import { QrRequest } from '../types/qr'
 
 const buildQrOptions = (body: QrRequest): QRCode.QRCodeToDataURLOptions => {
@@ -58,6 +59,8 @@ export const createQr = async (
       image: imageData,
       mimeType,
     })
+
+    emitQrCreated(userId, qr)
   } catch (err) {
     next(err)
   }
