@@ -57,8 +57,16 @@ export const QrPreviewStage = forwardRef<QrPreviewStageHandle, Props>(
     useImperativeHandle(ref, () => ({
       toDataURL: (scale = 1) => {
         if (!stageRef.current) return null
-        setSelected(false)
-        return stageRef.current.toDataURL({ pixelRatio: scale })
+        if (trRef.current) {
+          trRef.current.visible(false)
+          trRef.current.getLayer()?.batchDraw()
+        }
+        const url = stageRef.current.toDataURL({ pixelRatio: scale })
+        if (trRef.current) {
+          trRef.current.visible(true)
+          trRef.current.getLayer()?.batchDraw()
+        }
+        return url
       },
     }))
 

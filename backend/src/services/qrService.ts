@@ -96,4 +96,26 @@ export const qrService = {
   async getById(id: string, userId: string) {
     return prisma.qrCode.findFirst({ where: { id, userId } })
   },
+
+  async getByIdPublic(id: string) {
+    return prisma.qrCode.findUnique({ where: { id } })
+  },
+
+  async incrementViews(id: string): Promise<number> {
+    try {
+      const count = await redis.incr(`qr:views:${id}`)
+      return count
+    } catch {
+      return 0
+    }
+  },
+
+  async getViews(id: string): Promise<number> {
+    try {
+      const val = await redis.get(`qr:views:${id}`)
+      return val ? parseInt(val, 10) : 0
+    } catch {
+      return 0
+    }
+  },
 }

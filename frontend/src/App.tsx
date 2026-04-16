@@ -13,8 +13,10 @@ import { HISTORY_UPDATED_EVENT, QR_CREATED_EVENT, REUSE_EVENT_NAME } from './con
 import { type QrHistoryItem } from './types/qr'
 import { useAuth } from './hooks/useAuth'
 import { QrPreviewStage, STAGE_SIZE, type QrPreviewStageHandle } from './components/QrPreviewStage'
+import { ColorPicker } from './components/ColorPicker'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+const QR_VIEWED_EVENT = 'qr:viewed'
 
 type PreviewState = {
   image: string
@@ -69,8 +71,8 @@ function App() {
   const [logo, setLogo] = useState<string | null>(null)
   const [logoName, setLogoName] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [viewNotif, setViewNotif] = useState<string | null>(null)
   const socketRef = useRef<Socket | null>(null)
-  const colorPickerRef = useRef<HTMLInputElement>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const stageRef = useRef<QrPreviewStageHandle>(null)
 
@@ -97,13 +99,20 @@ function App() {
       window.dispatchEvent(historyEvent)
     }
 
+    const handleQrViewed = (data: { qrId: string; viewCount: number }) => {
+      setViewNotif(`QR viewed! Total views: ${data.viewCount}`)
+      setTimeout(() => setViewNotif(null), 3000)
+    }
+
     socket.on(QR_CREATED_EVENT, handleQrCreated)
+    socket.on(QR_VIEWED_EVENT, handleQrViewed)
     socket.on('connect_error', (error) => {
       console.warn('Realtime connection error', error)
     })
 
     return () => {
       socket.off(QR_CREATED_EVENT, handleQrCreated)
+      socket.off(QR_VIEWED_EVENT, handleQrViewed)
       socket.disconnect()
       socketRef.current = null
     }
@@ -223,7 +232,10 @@ function App() {
   }, [])
 
   const handleCopyLink = async () => {
-    const link = preview?.qr?.data ?? form.text.trim() ?? preview?.image ?? clientPreview.png
+    const qrId = preview?.qr?.id
+    const link = qrId
+      ? `${API_BASE_URL}/api/qr/${qrId}/view`
+      : null
     if (!link) return
 
     try {
@@ -343,29 +355,16 @@ function App() {
 
           {/* Colors */}
           <div className="color-row">
-            <div className="color-field">
-              <label className="field-label">Foreground</label>
-              <div className="color-input-wrap">
-                <input
-                  type="color"
-                  value={form.color}
-                  onChange={handleInputChange('color')}
-                />
-                <span>{form.color}</span>
-              </div>
-            </div>
-            <div className="color-field">
-              <label className="field-label">Background</label>
-              <div className="color-input-wrap">
-                <input
-                  ref={colorPickerRef}
-                  type="color"
-                  value={form.background}
-                  onChange={handleInputChange('background')}
-                />
-                <span>{form.background}</span>
-              </div>
-            </div>
+            <ColorPicker
+              label="Foreground"
+              value={form.color}
+              onChange={(c) => setForm((p) => ({ ...p, color: c }))}
+            />
+            <ColorPicker
+              label="Background"
+              value={form.background}
+              onChange={(c) => setForm((p) => ({ ...p, background: c }))}
+            />
           </div>
 
           {/* Size */}
@@ -524,6 +523,11 @@ function App() {
                 ))}
               </div>
             </div>
+          )}
+          {viewNotif && (
+            <p className="gen-preview-hint" style={{ color: 'var(--accent)' }}>
+              {viewNotif}
+            </p>
           )}
           <p className="gen-preview-hint">
             Preview updates instantly. For link/history, QR is generated on the server.

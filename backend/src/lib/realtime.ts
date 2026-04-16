@@ -8,6 +8,7 @@ let io: Server | null = null
 const roomForUser = (userId: string) => `user:${userId}`
 
 export const QR_CREATED_EVENT = 'qr:created'
+export const QR_VIEWED_EVENT = 'qr:viewed'
 
 type JwtPayload = {
   userId: string
@@ -61,5 +62,13 @@ export const emitQrCreated = (userId: string, payload: unknown): void => {
     getIo().to(roomForUser(userId)).emit(QR_CREATED_EVENT, payload)
   } catch (error) {
     console.error('Failed to emit QR event', error)
+  }
+}
+
+export const emitQrViewed = (userId: string, payload: unknown): void => {
+  try {
+    getIo().to(roomForUser(userId)).emit(QR_VIEWED_EVENT, payload)
+  } catch (error) {
+    console.error('Failed to emit QR viewed event', error)
   }
 }
