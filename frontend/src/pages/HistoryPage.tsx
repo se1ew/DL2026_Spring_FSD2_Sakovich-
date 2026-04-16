@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { HISTORY_UPDATED_EVENT, REUSE_EVENT_NAME } from '../constants/events'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { HISTORY_UPDATED_EVENT } from '../constants/events'
 import { type QrHistoryItem } from '../types/qr'
 import { useAuth } from '../hooks/useAuth'
 
@@ -22,11 +22,25 @@ export type HistoryPageProps = {
   onBack?: () => void
 }
 
-export const HistoryPage = ({ onBack }: HistoryPageProps) => {
+export const HistoryPage = (_props: HistoryPageProps) => {
   const { token } = useAuth()
   const [items, setItems] = useState<QrHistoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [dlMenuId, setDlMenuId] = useState<string | null>(null)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+  const dlMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!dlMenuId) return
+    const handler = (e: MouseEvent) => {
+      if (dlMenuRef.current && !dlMenuRef.current.contains(e.target as Node)) {
+        setDlMenuId(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [dlMenuId])
 
   const loadHistory = useCallback(async () => {
     setLoading(true)
@@ -58,22 +72,25 @@ export const HistoryPage = ({ onBack }: HistoryPageProps) => {
     return () => window.removeEventListener(HISTORY_UPDATED_EVENT, handler as EventListener)
   }, [])
 
-  const handleReuse = (item: QrHistoryItem) => {
-    window.dispatchEvent(new CustomEvent(REUSE_EVENT_NAME, { detail: item }))
-    onBack?.()
-  }
-
-  const handleDownload = (item: QrHistoryItem) => {
+  const handleDownload = (item: QrHistoryItem, format: 'png' | 'svg') => {
     const thumb = normalizeThumb(item)
     if (!thumb) return
     const a = document.createElement('a')
     a.href = thumb
-    a.download = `qr-${item.id.slice(0, 8)}.png`
+    a.download = `qr-${item.id.slice(0, 8)}.${format}`
     a.click()
+    setDlMenuId(null)
   }
 
   const handleCopyLink = async (item: QrHistoryItem) => {
-    await navigator.clipboard.writeText(item.data).catch(() => {})
+    const link = `${API_BASE_URL}/api/qr/${item.id}/view`
+    await navigator.clipboard.writeText(link).catch(() => {})
+    setCopiedId(item.id)
+    setTimeout(() => setCopiedId(null), 1500)
+  }
+
+  const handleOpen = (item: QrHistoryItem) => {
+    window.open(`${API_BASE_URL}/api/qr/${item.id}/view`, '_blank', 'noopener')
   }
 
   return (
@@ -106,9 +123,25 @@ export const HistoryPage = ({ onBack }: HistoryPageProps) => {
                 <p className="hist-card-date">{formatDate(item.createdAt)}</p>
                 <p className="hist-card-url">{item.data}</p>
                 <div className="hist-card-btns">
-                  <button type="button" className="hist-btn" onClick={() => handleDownload(item)}>Download</button>
-                  <button type="button" className="hist-btn" onClick={() => handleCopyLink(item)}>Copy link</button>
-                  <button type="button" className="hist-btn" onClick={() => handleReuse(item)}>Open</button>
+                  <div style={{ position: 'relative' }} ref={dlMenuId === item.id ? dlMenuRef : undefined}>
+                    <button
+                      type="button"
+                      className="hist-btn"
+                      onClick={() => setDlMenuId(dlMenuId === item.id ? null : item.id)}
+                    >
+                      Download ▾
+                    </button>
+                    {dlMenuId === item.id && (
+                      <div className="dl-menu">
+                        <button type="button" className="dl-menu-item" onClick={() => handleDownload(item, 'png')}>PNG</button>
+                        <button type="button" className="dl-menu-item" onClick={() => handleDownload(item, 'svg')}>SVG</button>
+                      </div>
+                    )}
+                  </div>
+                  <button type="button" className="hist-btn" onClick={() => handleCopyLink(item)}>
+                    {copiedId === item.id ? 'Copied!' : 'Copy link'}
+                  </button>
+                  <button type="button" className="hist-btn" onClick={() => handleOpen(item)}>Open</button>
                 </div>
               </div>
             </div>

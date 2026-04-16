@@ -85,7 +85,10 @@ export const QrPreviewStage = forwardRef<QrPreviewStageHandle, Props>(
         height={STAGE_SIZE}
         style={{ borderRadius: 8, overflow: 'hidden', cursor: 'default' }}
         onMouseDown={(e) => {
-          if (e.target === e.target.getStage()) setSelected(false)
+          if (e.target !== logoNodeRef.current) setSelected(false)
+        }}
+        onTouchStart={(e) => {
+          if (e.target !== logoNodeRef.current) setSelected(false)
         }}
       >
         <Layer>
