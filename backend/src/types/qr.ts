@@ -16,6 +16,10 @@ export const QrRequestSchema = z.object({
     .regex(/^#([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6})$/, 'background must be a hex value')
     .optional()
     .default('#ffffff'),
+  precomposedImage: z
+    .string()
+    .regex(/^data:image\/png;base64,/, 'precomposedImage must be a PNG data URL')
+    .optional(),
 })
 
 export type QrRequest = z.infer<typeof QrRequestSchema>

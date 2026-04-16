@@ -1,9 +1,24 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { HISTORY_UPDATED_EVENT, REUSE_EVENT_NAME } from '../constants/events'
 import { type QrHistoryItem } from '../types/qr'
 import { useAuth } from '../hooks/useAuth'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+
+const formatCardDate = (value: string) =>
+  new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+    .format(new Date(value))
+    .toUpperCase()
+
+const normalizeThumb = (item: QrHistoryItem) => {
+  if (!item.imageUrl) return ''
+  if (item.imageUrl.trim().startsWith('<svg'))
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(item.imageUrl)}`
+  return item.imageUrl
+}
+
+const truncate = (str: string, n: number) =>
+  str.length > n ? `${str.slice(0, n)}…` : str
 
 export type HistoryPageProps = {
   onBack?: () => void
@@ -20,158 +35,117 @@ export const HistoryPage = ({ onBack }: HistoryPageProps) => {
     setLoading(true)
     setError(null)
     try {
-      if (!token) {
-        throw new Error('Сессия недействительна')
-      }
-
+      if (!token) throw new Error('Session expired')
       const response = await fetch(`${API_BASE_URL}/api/qr`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       })
       const payload = await response.json()
-
-      if (!response.ok) {
-        throw new Error(payload.error || 'Не удалось загрузить историю')
-      }
-
+      if (!response.ok) throw new Error(payload.error || 'Failed to load history')
       setItems(payload.items ?? [])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось загрузить историю')
+      setError(err instanceof Error ? err.message : 'Failed to load history')
     } finally {
       setLoading(false)
     }
   }, [token])
 
-  useEffect(() => {
-    loadHistory()
-  }, [loadHistory])
-
-  const empty = !loading && items.length === 0
+  useEffect(() => { loadHistory() }, [loadHistory])
 
   useEffect(() => {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<QrHistoryItem | undefined>).detail
       if (!detail) return
-
-      setItems((prev) => {
-        const filtered = prev.filter((item) => item.id !== detail.id)
-        return [detail, ...filtered]
-      })
-
-      setSelected((prev) => prev ?? detail)
+      setItems((prev) => [detail, ...prev.filter((i) => i.id !== detail.id)])
     }
-
     window.addEventListener(HISTORY_UPDATED_EVENT, handler as EventListener)
-    return () => {
-      window.removeEventListener(HISTORY_UPDATED_EVENT, handler as EventListener)
-    }
+    return () => window.removeEventListener(HISTORY_UPDATED_EVENT, handler as EventListener)
   }, [])
 
-  useEffect(() => {
-    if (!loading && !selected && items.length > 0) {
-      setSelected(items[0])
-    }
-  }, [items, loading, selected])
-
-  const selectedPreview = useMemo(() => {
-    if (!selected) return null
-    const isSvg = selected.imageUrl.trim().startsWith('<svg')
-    const image = isSvg
-      ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(selected.imageUrl)}`
-      : selected.imageUrl
-    return {
-      image,
-      format: selected.format.toUpperCase(),
-      size: selected.size,
-      createdAt: new Intl.DateTimeFormat('ru-RU', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      }).format(new Date(selected.createdAt)),
-    }
-  }, [selected])
-
-  const handleReuse = () => {
-    if (!selected) return
-    const event = new CustomEvent(REUSE_EVENT_NAME, { detail: selected })
+  const handleReuse = (item: QrHistoryItem) => {
+    const event = new CustomEvent(REUSE_EVENT_NAME, { detail: item })
     window.dispatchEvent(event)
     onBack?.()
   }
 
   return (
-    <div className="history-view">
-      <header>
+    <div className="vault-page">
+      <div className="vault-header">
         <div>
-          <p className="eyebrow">История</p>
-          <h1>Последние QR-коды</h1>
-          <p className="lede">
-            Здесь хранятся все генерации. Выберите запись, чтобы посмотреть детали или
-            переиспользовать данные.
-          </p>
+          <p className="eyebrow">Archive System</p>
+          <h1>Vault</h1>
         </div>
-        {onBack && (
-          <button type="button" className="ghost" onClick={onBack}>
-            Вернуться к генератору
+        <div className="vault-filters">
+          <button type="button" className="btn-filter active">All Assets</button>
+          <button type="button" className="btn-filter">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="21" y1="4" x2="14" y2="4" /><line x1="10" y1="4" x2="3" y2="4" />
+              <line x1="21" y1="12" x2="12" y2="12" /><line x1="8" y1="12" x2="3" y2="12" />
+              <line x1="21" y1="20" x2="16" y2="20" /><line x1="12" y1="20" x2="3" y2="20" />
+              <line x1="14" y1="2" x2="14" y2="6" /><line x1="8" y1="10" x2="8" y2="14" />
+              <line x1="16" y1="18" x2="16" y2="22" />
+            </svg>
+            Sort
           </button>
-        )}
-      </header>
+        </div>
+      </div>
 
-      <div className="history-content">
-        <section className="history-list-panel">
-          {loading && <p className="muted">Загружаем историю…</p>}
-          {error && <p className="form-error">{error}</p>}
-          {empty && <p className="muted">История пуста</p>}
+      {loading && <p className="vault-loading">Loading vault…</p>}
+      {error && <p className="form-error">{error}</p>}
+      {!loading && !error && items.length === 0 && (
+        <p className="vault-empty">No QR codes yet. Create your first one.</p>
+      )}
 
-          <ul className="history-board">
-            {items.map((item) => (
-              <li key={item.id} className={selected?.id === item.id ? 'active' : ''}>
-                <button type="button" onClick={() => setSelected(item)}>
-                  <div>
-                    <strong>
-                      {item.data.length > 60 ? `${item.data.slice(0, 60)}…` : item.data}
-                    </strong>
-                    <span>
-                      {new Intl.DateTimeFormat('ru-RU', {
-                        dateStyle: 'medium',
-                        timeStyle: 'short',
-                      }).format(new Date(item.createdAt))}
-                    </span>
-                  </div>
-                  <span className="pill">{item.format.toUpperCase()}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <aside className="history-preview-panel">
-          {selectedPreview ? (
-            <div className="history-preview">
-              <img src={selectedPreview.image} alt="QR" />
-              <div className="history-preview-meta">
-                <div>
-                  <span>Формат</span>
-                  <strong>{selectedPreview.format}</strong>
-                </div>
-                <div>
-                  <span>Размер</span>
-                  <strong>{selectedPreview.size} px</strong>
-                </div>
-                <div>
-                  <span>Создан</span>
-                  <strong>{selectedPreview.createdAt}</strong>
-                </div>
+      {items.length > 0 && (
+        <div className="vault-grid">
+          {items.map((item) => (
+            <div
+              key={item.id}
+              className={`vault-card${selected?.id === item.id ? ' selected' : ''}`}
+              onClick={() => { setSelected(item); handleReuse(item) }}
+            >
+              <div className="vault-card-thumb">
+                {normalizeThumb(item) ? (
+                  <img src={normalizeThumb(item)} alt={item.data} />
+                ) : (
+                  <svg className="no-thumb" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <rect x="3" y="3" width="7" height="7" rx="1" />
+                    <rect x="14" y="3" width="7" height="7" rx="1" />
+                    <rect x="3" y="14" width="7" height="7" rx="1" />
+                    <rect x="5" y="5" width="3" height="3" rx="0.5" fill="currentColor" stroke="none" />
+                    <rect x="16" y="5" width="3" height="3" rx="0.5" fill="currentColor" stroke="none" />
+                    <rect x="5" y="16" width="3" height="3" rx="0.5" fill="currentColor" stroke="none" />
+                  </svg>
+                )}
               </div>
-              <button className="primary" type="button" onClick={handleReuse}>
-                Повторно использовать
-              </button>
+              <div className="vault-card-info">
+                <div className="vault-card-meta">
+                  <span className="vault-card-name">{truncate(item.data, 22)}</span>
+                  <span className="vault-card-date">{formatCardDate(item.createdAt)}</span>
+                </div>
+                <span className="vault-card-link">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                    <polyline points="15 3 21 3 21 9" />
+                    <line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                </span>
+              </div>
             </div>
-          ) : (
-            <div className="history-preview placeholder">
-              <p>Выберите QR из списка, чтобы увидеть детали</p>
-            </div>
-          )}
-        </aside>
+          ))}
+        </div>
+      )}
+
+      <div className="vault-footer">
+        <div className="vault-stats">
+          <div className="vault-stat">
+            <span className="vault-stat-label">Total Assets</span>
+            <span className="vault-stat-value">{items.length}</span>
+          </div>
+        </div>
+        <p className="vault-footer-right">
+          All cryptographic data is localized &amp; end-to-end encrypted.<br />
+          Luminescent QR © {new Date().getFullYear()}
+        </p>
       </div>
     </div>
   )

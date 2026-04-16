@@ -41,44 +41,46 @@ export const AuthScreen = () => {
   return (
     <div className="auth-screen">
       <div className="auth-card">
-        <p className="eyebrow">QR LAB · Secure Access</p>
+        <p className="eyebrow">Luminescent QR · Secure Access</p>
         <h1>{title}</h1>
-        <p className="lede">{subtitle}</p>
+        <p style={{ fontSize: '13px', color: 'var(--text)', marginTop: '-8px' }}>{subtitle}</p>
 
         <form className="auth-form" onSubmit={handleSubmit}>
-          <label className="field">
-            <span>Email</span>
+          <div className="auth-field">
+            <label htmlFor="auth-email">Email</label>
             <input
+              id="auth-email"
               type="email"
               placeholder="you@example.com"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               required
             />
-          </label>
+          </div>
 
-          <label className="field">
-            <span>Пароль</span>
+          <div className="auth-field">
+            <label htmlFor="auth-password">Password</label>
             <input
+              id="auth-password"
               type="password"
-              placeholder="Минимум 6 символов"
+              placeholder="Min. 6 characters"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
             />
-          </label>
+          </div>
 
           {error && <p className="form-error">{error}</p>}
 
-          <button type="submit" className="primary" disabled={isSubmitting}>
-            {isSubmitting ? 'Подождите…' : mode === 'login' ? 'Войти' : 'Зарегистрироваться'}
+          <button type="submit" className="btn-generate" disabled={isSubmitting}>
+            {isSubmitting ? 'Please wait…' : mode === 'login' ? 'Access Vault' : 'Create Account'}
           </button>
         </form>
 
         <div className="auth-toggle">
-          <span>{mode === 'login' ? 'Нет аккаунта?' : 'Уже есть аккаунт?'}</span>
+          <span>{mode === 'login' ? 'No account?' : 'Already have an account?'}</span>
           <button type="button" onClick={() => setMode((prev) => (prev === 'login' ? 'register' : 'login'))}>
-            {mode === 'login' ? 'Создать' : 'Войти'}
+            {mode === 'login' ? 'Register' : 'Sign In'}
           </button>
         </div>
       </div>

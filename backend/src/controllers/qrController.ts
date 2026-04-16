@@ -28,7 +28,7 @@ export const createQr = async (
       return
     }
 
-    const { text, format } = req.body
+    const { text, format, precomposedImage } = req.body
     const options = buildQrOptions(req.body)
 
     let imageData: string
@@ -38,7 +38,7 @@ export const createQr = async (
       imageData = await QRCode.toString(text, { ...options, type: 'svg' })
       mimeType = 'image/svg+xml'
     } else {
-      imageData = await QRCode.toDataURL(text, options)
+      imageData = precomposedImage ?? await QRCode.toDataURL(text, options)
       mimeType = 'image/png'
     }
 
