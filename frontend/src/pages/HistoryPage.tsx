@@ -5,10 +5,11 @@ import { useAuth } from '../hooks/useAuth'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
-const formatCardDate = (value: string) =>
-  new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
-    .format(new Date(value))
-    .toUpperCase()
+const formatDate = (value: string) =>
+  new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).format(new Date(value))
 
 const normalizeThumb = (item: QrHistoryItem) => {
   if (!item.imageUrl) return ''
@@ -16,9 +17,6 @@ const normalizeThumb = (item: QrHistoryItem) => {
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(item.imageUrl)}`
   return item.imageUrl
 }
-
-const truncate = (str: string, n: number) =>
-  str.length > n ? `${str.slice(0, n)}…` : str
 
 export type HistoryPageProps = {
   onBack?: () => void
@@ -29,18 +27,17 @@ export const HistoryPage = ({ onBack }: HistoryPageProps) => {
   const [items, setItems] = useState<QrHistoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selected, setSelected] = useState<QrHistoryItem | null>(null)
 
   const loadHistory = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       if (!token) throw new Error('Session expired')
-      const response = await fetch(`${API_BASE_URL}/api/qr`, {
+      const res = await fetch(`${API_BASE_URL}/api/qr`, {
         headers: { Authorization: `Bearer ${token}` },
       })
-      const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || 'Failed to load history')
+      const payload = await res.json()
+      if (!res.ok) throw new Error(payload.error || 'Failed to load history')
       setItems(payload.items ?? [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load history')
@@ -62,90 +59,61 @@ export const HistoryPage = ({ onBack }: HistoryPageProps) => {
   }, [])
 
   const handleReuse = (item: QrHistoryItem) => {
-    const event = new CustomEvent(REUSE_EVENT_NAME, { detail: item })
-    window.dispatchEvent(event)
+    window.dispatchEvent(new CustomEvent(REUSE_EVENT_NAME, { detail: item }))
     onBack?.()
   }
 
+  const handleDownload = (item: QrHistoryItem) => {
+    const thumb = normalizeThumb(item)
+    if (!thumb) return
+    const a = document.createElement('a')
+    a.href = thumb
+    a.download = `qr-${item.id.slice(0, 8)}.png`
+    a.click()
+  }
+
+  const handleCopyLink = async (item: QrHistoryItem) => {
+    await navigator.clipboard.writeText(item.data).catch(() => {})
+  }
+
   return (
-    <div className="vault-page">
-      <div className="vault-header">
-        <div>
-          <p className="eyebrow">Archive System</p>
-          <h1>Vault</h1>
-        </div>
-        <div className="vault-filters">
-          <button type="button" className="btn-filter active">All Assets</button>
-          <button type="button" className="btn-filter">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="21" y1="4" x2="14" y2="4" /><line x1="10" y1="4" x2="3" y2="4" />
-              <line x1="21" y1="12" x2="12" y2="12" /><line x1="8" y1="12" x2="3" y2="12" />
-              <line x1="21" y1="20" x2="16" y2="20" /><line x1="12" y1="20" x2="3" y2="20" />
-              <line x1="14" y1="2" x2="14" y2="6" /><line x1="8" y1="10" x2="8" y2="14" />
-              <line x1="16" y1="18" x2="16" y2="22" />
-            </svg>
-            Sort
-          </button>
-        </div>
+    <div className="hist-page">
+      <div className="hist-header">
+        <h2>History</h2>
+        <button type="button" className="btn-clear" onClick={() => setItems([])}>
+          Clear history
+        </button>
       </div>
 
-      {loading && <p className="vault-loading">Loading vault…</p>}
+      {loading && <p className="hist-status">Loading…</p>}
       {error && <p className="form-error">{error}</p>}
       {!loading && !error && items.length === 0 && (
-        <p className="vault-empty">No QR codes yet. Create your first one.</p>
+        <p className="hist-status">No QR codes yet. Create your first one.</p>
       )}
 
-      {items.length > 0 && (
-        <div className="vault-grid">
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className={`vault-card${selected?.id === item.id ? ' selected' : ''}`}
-              onClick={() => { setSelected(item); handleReuse(item) }}
-            >
-              <div className="vault-card-thumb">
-                {normalizeThumb(item) ? (
-                  <img src={normalizeThumb(item)} alt={item.data} />
-                ) : (
-                  <svg className="no-thumb" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <rect x="3" y="3" width="7" height="7" rx="1" />
-                    <rect x="14" y="3" width="7" height="7" rx="1" />
-                    <rect x="3" y="14" width="7" height="7" rx="1" />
-                    <rect x="5" y="5" width="3" height="3" rx="0.5" fill="currentColor" stroke="none" />
-                    <rect x="16" y="5" width="3" height="3" rx="0.5" fill="currentColor" stroke="none" />
-                    <rect x="5" y="16" width="3" height="3" rx="0.5" fill="currentColor" stroke="none" />
-                  </svg>
-                )}
+      <div className="hist-cards">
+        {items.map((item) => {
+          const thumb = normalizeThumb(item)
+          return (
+            <div key={item.id} className="hist-card">
+              <div className="hist-card-thumb">
+                {thumb
+                  ? <img src={thumb} alt={item.data} />
+                  : <div className="hist-thumb-empty" />}
               </div>
-              <div className="vault-card-info">
-                <div className="vault-card-meta">
-                  <span className="vault-card-name">{truncate(item.data, 22)}</span>
-                  <span className="vault-card-date">{formatCardDate(item.createdAt)}</span>
+              <div className="hist-card-info">
+                <p className="hist-card-id">QR {item.id.slice(0, 8)}</p>
+                <p className="hist-card-date">{formatDate(item.createdAt)}</p>
+                <p className="hist-card-url">{item.data}</p>
+                <div className="hist-card-btns">
+                  <button type="button" className="hist-btn" onClick={() => handleDownload(item)}>Download</button>
+                  <button type="button" className="hist-btn" onClick={() => handleCopyLink(item)}>Copy link</button>
+                  <button type="button" className="hist-btn" onClick={() => handleReuse(item)}>Open</button>
                 </div>
-                <span className="vault-card-link">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                    <polyline points="15 3 21 3 21 9" />
-                    <line x1="10" y1="14" x2="21" y2="3" />
-                  </svg>
-                </span>
               </div>
             </div>
-          ))}
-        </div>
-      )}
-
-      <div className="vault-footer">
-        <div className="vault-stats">
-          <div className="vault-stat">
-            <span className="vault-stat-label">Total Assets</span>
-            <span className="vault-stat-value">{items.length}</span>
-          </div>
-        </div>
-        <p className="vault-footer-right">
-          All cryptographic data is localized &amp; end-to-end encrypted.<br />
-          Luminescent QR © {new Date().getFullYear()}
-        </p>
+          )
+        })}
       </div>
     </div>
   )

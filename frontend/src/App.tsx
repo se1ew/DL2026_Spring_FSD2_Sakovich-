@@ -12,9 +12,9 @@ import './App.css'
 import { HISTORY_UPDATED_EVENT, QR_CREATED_EVENT, REUSE_EVENT_NAME } from './constants/events'
 import { type QrHistoryItem } from './types/qr'
 import { useAuth } from './hooks/useAuth'
+import { QrPreviewStage, STAGE_SIZE, type QrPreviewStageHandle } from './components/QrPreviewStage'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
-const TONE_PRESETS = ['#2ee8c7', '#00d4aa', '#00b8d9', '#7eb8b4', '#e8f5f3']
 
 type PreviewState = {
   image: string
@@ -68,10 +68,11 @@ function App() {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [logo, setLogo] = useState<string | null>(null)
   const [logoName, setLogoName] = useState<string | null>(null)
-  const [composedPreview, setComposedPreview] = useState<string | null>(null)
+  const [dragOver, setDragOver] = useState(false)
   const socketRef = useRef<Socket | null>(null)
   const colorPickerRef = useRef<HTMLInputElement>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
+  const stageRef = useRef<QrPreviewStageHandle>(null)
 
   useEffect(() => {
     if (!token) {
@@ -172,7 +173,7 @@ function App() {
           ...form,
           size: Number(form.size),
           margin: Number(form.margin),
-          ...(composedPreview ? { precomposedImage: composedPreview } : {}),
+          ...(logo ? { precomposedImage: getStageDataURL() ?? undefined } : {}),
         }),
       })
 
@@ -236,29 +237,6 @@ function App() {
     }
   }
 
-  const handleShareCode = async () => {
-    const shareText = preview?.qr?.data ?? form.text.trim()
-    if (!shareText) return
-
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: 'Minted Flow QR',
-          text: shareText,
-        })
-        return
-      }
-
-      await navigator.clipboard.writeText(shareText)
-      setCopyStatus('success')
-      setTimeout(() => setCopyStatus('idle'), 1500)
-    } catch (error) {
-      console.error(error)
-      setCopyStatus('error')
-      setTimeout(() => setCopyStatus('idle'), 2000)
-    }
-  }
-
   const downloadData = (dataUrl: string, fileName: string) => {
     const link = document.createElement('a')
     link.href = dataUrl
@@ -267,9 +245,20 @@ function App() {
   }
 
   const handleDownloadPng = () => {
-    const png = clientPreview.png ?? (preview?.mimeType.includes('png') ? preview.image : null)
+    const composed = getStageDataURL()
+    const png = composed ?? clientPreview.png ?? (preview?.mimeType.includes('png') ? preview.image : null)
     if (!png) return
     downloadData(png, 'qr-code.png')
+  }
+
+  const handleDownloadSvg = () => {
+    const svgRaw = clientPreview.svg
+    const svgFromServer = preview?.mimeType.includes('svg') ? preview.image : null
+    const svgData = svgRaw
+      ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgRaw)}`
+      : svgFromServer
+    if (!svgData) return
+    downloadData(svgData, 'qr-code.svg')
   }
 
   useEffect(() => {
@@ -326,154 +315,97 @@ function App() {
     }
   }, [form.text, form.size, form.margin, form.color, form.background, form.errorCorrectionLevel])
 
-  useEffect(() => {
-    if (!clientPreview.png || !logo) {
-      setComposedPreview(null)
-      return
-    }
+  const getStageDataURL = () =>
+    stageRef.current?.toDataURL(form.size / STAGE_SIZE) ?? null
 
-    let cancelled = false
-    const canvas = document.createElement('canvas')
-    canvas.width = form.size
-    canvas.height = form.size
-    const ctx = canvas.getContext('2d')!
-
-    const qrImg = new Image()
-    qrImg.onload = () => {
-      ctx.drawImage(qrImg, 0, 0, form.size, form.size)
-      const logoImg = new Image()
-      logoImg.onload = () => {
-        if (cancelled) return
-        const logoSize = Math.round(form.size * 0.22)
-        const pad = 6
-        const bgSize = logoSize + pad * 2
-        const x = (form.size - bgSize) / 2
-        const y = (form.size - bgSize) / 2
-        ctx.fillStyle = '#ffffff'
-        ctx.fillRect(x, y, bgSize, bgSize)
-        ctx.drawImage(logoImg, x + pad, y + pad, logoSize, logoSize)
-        setComposedPreview(canvas.toDataURL('image/png'))
-      }
-      logoImg.src = logo
-    }
-    qrImg.src = clientPreview.png
-
-    return () => { cancelled = true }
-  }, [clientPreview.png, logo, form.size])
-
-  const previewImage = composedPreview ?? clientPreview.png ?? preview?.image ?? ''
-
-  const copyLabel =
-    copyStatus === 'success' ? 'Copied!' : copyStatus === 'error' ? 'Error' : 'Copy'
-
-  const hasPreview = Boolean(previewImage)
+  const hasPreview = Boolean(clientPreview.png ?? preview?.image)
 
   return (
-    <div className="create-page">
+    <div className="gen-page">
+      <h2>Generator</h2>
 
-      {/* ── Left: control panel ── */}
-      <div className="create-left">
-        <div className="create-heading">
-          <p className="eyebrow">Engine Configuration</p>
-          <h1>Control Panel</h1>
-        </div>
+      <div className="gen-layout">
+        {/* ── Left: controls ── */}
+        <form className="gen-controls" onSubmit={handleSubmit}>
 
-        <form onSubmit={handleSubmit} style={{ display: 'contents' }}>
-          {/* Destination URL */}
+          {/* Content */}
           <div className="field-group">
-            <p className="field-label">Destination URL</p>
-            <div className="lum-input-wrap">
-              <input
-                className="lum-input"
-                type="text"
-                placeholder="https://luminescent.tech/vault/..."
-                value={form.text}
-                onChange={handleInputChange('text')}
-              />
-              <span className="lum-input-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                </svg>
-              </span>
-            </div>
+            <label className="field-label" htmlFor="gen-text">Content (text or URL)</label>
+            <input
+              id="gen-text"
+              className="lum-input"
+              type="text"
+              placeholder="https://example.com"
+              value={form.text}
+              onChange={handleInputChange('text')}
+            />
           </div>
 
-          {/* Synthesis Tone */}
-          <div className="field-group">
-            <p className="field-label">Synthesis Tone</p>
-            <div className="tone-swatches">
-              {TONE_PRESETS.map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  className={`tone-swatch${form.color === color ? ' selected' : ''}`}
-                  style={{ background: color }}
-                  onClick={() => setForm((prev) => ({ ...prev, color }))}
-                  title={color}
-                />
-              ))}
-              <div style={{ position: 'relative' }}>
-                <button
-                  type="button"
-                  className="tone-swatch-add"
-                  onClick={() => colorPickerRef.current?.click()}
-                  title="Custom color"
-                >
-                  +
-                </button>
+          {/* Colors */}
+          <div className="color-row">
+            <div className="color-field">
+              <label className="field-label">Foreground</label>
+              <div className="color-input-wrap">
                 <input
-                  ref={colorPickerRef}
                   type="color"
-                  className="tone-color-hidden"
                   value={form.color}
                   onChange={handleInputChange('color')}
                 />
+                <span>{form.color}</span>
+              </div>
+            </div>
+            <div className="color-field">
+              <label className="field-label">Background</label>
+              <div className="color-input-wrap">
+                <input
+                  ref={colorPickerRef}
+                  type="color"
+                  value={form.background}
+                  onChange={handleInputChange('background')}
+                />
+                <span>{form.background}</span>
               </div>
             </div>
           </div>
 
-          {/* Synthesis Resolution */}
-          <div className="field-group">
-            <div className="resolution-header">
-              <p className="field-label" style={{ margin: 0 }}>Synthesis Resolution</p>
-              <span className="resolution-value">{form.size}px</span>
+          {/* Size */}
+          <div className="slider-row">
+            <div className="slider-label-row">
+              <label className="field-label" style={{ margin: 0 }}>Size (px)</label>
+              <span className="slider-value">{form.size}px</span>
             </div>
             <input
               className="lum-slider"
               type="range"
-              min={200}
+              min={100}
               max={600}
               step={20}
               value={form.size}
               onChange={handleInputChange('size', (v) => Number(v) as FormState['size'])}
             />
-            <div className="slider-labels">
-              <span>Low-Fi</span>
-              <span>Ultra-HD</span>
-            </div>
           </div>
 
-          {/* Advanced */}
-          <div className="field-group">
-            <p className="field-label">Error Correction · Format</p>
-            <div style={{ display: 'flex', gap: '10px' }}>
+          {/* Error correction + Format */}
+          <div className="color-row">
+            <div className="color-field">
+              <label className="field-label">Error correction</label>
               <select
                 className="lum-select"
                 value={form.errorCorrectionLevel}
                 onChange={handleInputChange('errorCorrectionLevel', (v) => v as FormState['errorCorrectionLevel'])}
-                style={{ flex: 1 }}
               >
                 <option value="L">L — 7%</option>
                 <option value="M">M — 15%</option>
                 <option value="Q">Q — 25%</option>
                 <option value="H">H — 30%</option>
               </select>
+            </div>
+            <div className="color-field">
+              <label className="field-label">Format</label>
               <select
                 className="lum-select"
                 value={form.format}
                 onChange={handleInputChange('format', (v) => (v === 'svg' ? 'svg' : 'png'))}
-                style={{ flex: 1 }}
               >
                 <option value="png">PNG</option>
                 <option value="svg">SVG</option>
@@ -481,18 +413,28 @@ function App() {
             </div>
           </div>
 
-          {/* Monolith Branding */}
+          {/* Logo */}
           <div className="field-group">
-            <p className="field-label">Monolith Branding</p>
+            <label className="field-label">Logo (optional)</label>
             <div
-              className={`upload-area${logo ? ' has-logo' : ''}`}
+              className={`logo-dropzone${logo ? ' has-logo' : ''}${dragOver ? ' drag-over' : ''}`}
               onClick={() => logoInputRef.current?.click()}
-              style={{ cursor: 'pointer' }}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault()
+                setDragOver(false)
+                const file = e.dataTransfer.files[0]
+                if (file) {
+                  const fakeEvent = { target: { files: [file] } } as unknown as ChangeEvent<HTMLInputElement>
+                  handleLogoFile(fakeEvent)
+                }
+              }}
             >
               {logo ? (
-                <>
-                  <img src={logo} alt="logo preview" className="logo-thumb" />
-                  <p>{logoName}</p>
+                <div className="logo-dropzone-preview">
+                  <img src={logo} alt="logo" />
+                  <span>{logoName}</span>
                   <button
                     type="button"
                     className="logo-remove"
@@ -500,17 +442,18 @@ function App() {
                   >
                     Remove
                   </button>
-                </>
+                </div>
               ) : (
                 <>
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                    <line x1="12" y1="18" x2="12" y2="12" />
-                    <line x1="9" y1="15" x2="15" y2="15" />
-                  </svg>
-                  <p>Upload SVG or PNG</p>
-                  <small>Max file size 500 KB</small>
+                  <span className="logo-dropzone-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="16 16 12 12 8 16" />
+                      <line x1="12" y1="12" x2="12" y2="21" />
+                      <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
+                    </svg>
+                  </span>
+                  <p>Drop image here or click to browse</p>
+                  <small>PNG, JPEG, WebP, SVG · max 500 KB</small>
                 </>
               )}
             </div>
@@ -525,83 +468,67 @@ function App() {
 
           {formError && <p className="form-error">{formError}</p>}
 
-          <button type="submit" className="btn-generate" disabled={isSubmitting}>
-            {isSubmitting ? 'Generating…' : 'Generate & Download'}
-          </button>
-        </form>
-      </div>
-
-      {/* ── Right: live preview ── */}
-      <div className="create-right">
-        <div className="preview-card">
-          <div className="preview-canvas">
-            {hasPreview ? (
-              <img src={previewImage} alt="QR preview" />
-            ) : (
-              <div className="preview-empty">
-                <div className="preview-empty-grid">
-                  {Array.from({ length: 20 }).map((_, i) => (
-                    <span key={i} />
-                  ))}
-                </div>
-                <p>Synthesis engine standing by.</p>
-              </div>
-            )}
-          </div>
-
-          <div className="preview-bar">
-            <span className="preview-bar-label">Live Synthesis Preview V2.4</span>
-            <span className="preview-encrypted">Encrypted</span>
-          </div>
-
-          <div className="preview-actions-row">
+          {/* Action buttons */}
+          <div className="gen-actions">
             <button
               type="button"
-              className="btn-action"
+              className="btn-dl"
               onClick={handleDownloadPng}
               disabled={!hasPreview}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-              Inspect
+              Download PNG
             </button>
             <button
               type="button"
-              className={`btn-action${copyStatus === 'success' ? ' success' : ''}`}
+              className="btn-dl"
+              onClick={handleDownloadSvg}
+              disabled={!hasPreview}
+            >
+              Download SVG
+            </button>
+            <button
+              type="button"
+              className={`btn-dl${copyStatus === 'success' ? ' copied' : ''}`}
               onClick={handleCopyLink}
               disabled={!hasPreview}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
-              {copyLabel}
-            </button>
-            <button
-              type="button"
-              className="btn-action"
-              onClick={handleShareCode}
-              disabled={!hasPreview}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="18" cy="5" r="3" />
-                <circle cx="6" cy="12" r="3" />
-                <circle cx="18" cy="19" r="3" />
-                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-              </svg>
-              Share
+              {copyStatus === 'success' ? 'Copied link to clipboard' : 'Copy image link'}
             </button>
           </div>
-        </div>
 
-        <p className="preview-hint">
-          {hasPreview
-            ? 'Changes are reflected in real-time.'
-            : 'Synthesis engine standing by. Changes are reflected in real-time.'}
-        </p>
+          <button type="submit" className="btn-generate" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Save to History'}
+          </button>
+        </form>
+
+        {/* ── Right: preview ── */}
+        <div className="gen-preview">
+          {hasPreview ? (
+            <>
+              <QrPreviewStage
+                ref={stageRef}
+                qrDataUrl={clientPreview.png ?? preview?.image ?? null}
+                logoDataUrl={logo}
+              />
+              {logo && (
+                <p className="gen-preview-hint" style={{ color: 'var(--accent)' }}>
+                  Drag or resize the logo on the preview
+                </p>
+              )}
+            </>
+          ) : (
+            <div className="gen-preview-empty">
+              <div className="preview-empty-grid">
+                {Array.from({ length: 25 }).map((_, i) => (
+                  <span key={i} />
+                ))}
+              </div>
+            </div>
+          )}
+          <p className="gen-preview-hint">
+            Preview updates instantly. For link/history, QR is generated on the server.
+          </p>
+        </div>
       </div>
     </div>
   )
