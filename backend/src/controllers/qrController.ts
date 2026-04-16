@@ -106,6 +106,30 @@ export const getQrById = async (
   }
 }
 
+export const deleteQr = async (
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user?.userId
+    if (!userId) {
+      res.status(401).json({ error: 'Не авторизован' })
+      return
+    }
+
+    const deleted = await qrService.deleteById(req.params.id, userId)
+    if (!deleted) {
+      res.status(404).json({ error: 'QR code not found' })
+      return
+    }
+
+    res.status(200).json({ id: deleted.id })
+  } catch (err) {
+    next(err)
+  }
+}
+
 export const viewQrPublic = async (
   req: Request<{ id: string }>,
   res: Response,

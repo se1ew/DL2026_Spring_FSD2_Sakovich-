@@ -549,6 +549,32 @@
   color: var(--accent);
 }
 
+.hist-card-delete {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, border-color 0.15s, color 0.15s, background 0.15s;
+}
+.hist-card:hover .hist-card-delete {
+  opacity: 1;
+}
+.hist-card-delete:hover {
+  border-color: #ff6b6b;
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.08);
+}
+
 .dl-menu {
   position: absolute;
   top: calc(100% + 4px);

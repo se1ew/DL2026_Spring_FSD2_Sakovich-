@@ -97,6 +97,14 @@ export const qrService = {
     return prisma.qrCode.findFirst({ where: { id, userId } })
   },
 
+  async deleteById(id: string, userId: string) {
+    const qr = await prisma.qrCode.findFirst({ where: { id, userId } })
+    if (!qr) return null
+    await prisma.qrCode.delete({ where: { id } })
+    void invalidateHistoryCache(userId)
+    return qr
+  },
+
   async getByIdPublic(id: string) {
     return prisma.qrCode.findUnique({ where: { id } })
   },

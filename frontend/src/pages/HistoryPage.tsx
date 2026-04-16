@@ -93,6 +93,21 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     window.open(`${API_BASE_URL}/api/qr/${item.id}/view`, '_blank', 'noopener')
   }
 
+  const handleDelete = async (item: QrHistoryItem) => {
+    if (!token) return
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/qr/${item.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        setItems((prev) => prev.filter((i) => i.id !== item.id))
+      }
+    } catch {
+      // silent
+    }
+  }
+
   return (
     <div className="hist-page">
       <div className="hist-header">
@@ -112,7 +127,20 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         {items.map((item) => {
           const thumb = normalizeThumb(item)
           return (
-            <div key={item.id} className="hist-card">
+            <div key={item.id} className="hist-card" style={{ position: 'relative' }}>
+              <button
+                type="button"
+                className="hist-card-delete"
+                title="Delete"
+                onClick={() => handleDelete(item)}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                  <path d="M10 11v6M14 11v6" />
+                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                </svg>
+              </button>
               <div className="hist-card-thumb">
                 {thumb
                   ? <img src={thumb} alt={item.data} />
