@@ -1,15 +1,12 @@
 import { Request, Response, NextFunction } from 'express'
 import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
+import jwt, { type SignOptions } from 'jsonwebtoken'
 import { userService } from '../services/userService'
 import { LoginRequest, RegisterRequest } from '../types/auth'
+import { requireEnv } from '../lib/env'
 
-const JWT_SECRET = process.env.JWT_SECRET
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? '7d'
-
-if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET is not defined')
-}
+const JWT_SECRET = requireEnv('JWT_SECRET')
+const JWT_EXPIRES_IN = (process.env.JWT_EXPIRES_IN ?? '7d') as SignOptions['expiresIn']
 
 type JwtPayload = {
   userId: string

@@ -1,11 +1,8 @@
 import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
+import { requireEnv } from '../lib/env'
 
-const JWT_SECRET = process.env.JWT_SECRET
-
-if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET is not defined')
-}
+const JWT_SECRET = requireEnv('JWT_SECRET')
 
 type JwtPayload = {
   userId: string

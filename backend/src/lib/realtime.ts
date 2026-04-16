@@ -1,6 +1,7 @@
 import type { Server as HttpServer } from 'http'
 import { Server } from 'socket.io'
 import jwt from 'jsonwebtoken'
+import { requireEnv } from './env'
 
 let io: Server | null = null
 
@@ -13,9 +14,7 @@ type JwtPayload = {
 }
 
 export const initRealtime = (server: HttpServer): Server => {
-  if (!process.env.JWT_SECRET) {
-    throw new Error('JWT_SECRET is not defined')
-  }
+  const JWT_SECRET = requireEnv('JWT_SECRET')
 
   io = new Server(server, {
     cors: {
@@ -32,7 +31,7 @@ export const initRealtime = (server: HttpServer): Server => {
     }
 
     try {
-      const payload = jwt.verify(token, process.env.JWT_SECRET as string) as JwtPayload
+      const payload = jwt.verify(token, JWT_SECRET) as JwtPayload
       socket.data.userId = payload.userId
       next()
     } catch {

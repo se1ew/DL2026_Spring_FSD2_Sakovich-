@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import QRCode from 'qrcode'
+import * as QRCode from 'qrcode'
 import { io, type Socket } from 'socket.io-client'
 import './App.css'
 import { HISTORY_UPDATED_EVENT, QR_CREATED_EVENT, REUSE_EVENT_NAME } from './constants/events'
