@@ -606,6 +606,28 @@
   color: var(--accent);
 }
 
+/* ─── History pagination ────────────────────────────────────────── */
+.hist-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.hist-page-info {
+  font-size: 13px;
+  color: var(--text-muted);
+  min-width: 100px;
+  text-align: center;
+}
+
+.hist-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 /* ─── Form fields ───────────────────────────────────────────────── */
 .field-group {
   display: flex;

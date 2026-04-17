@@ -1,5 +1,5 @@
 import type { QrCode } from '@prisma/client'
-import { redis, buildHistoryCacheKey } from '../lib/redis'
+import { redis, buildHistoryCacheKey, buildHistoryCachePattern } from '../lib/redis'
 import { prisma } from '../lib/prisma'
 import type { QrRequest } from '../types/qr'
 
@@ -9,36 +9,29 @@ export type CreateQrPayload = Omit<QrRequest, 'text' | 'precomposedImage'> & {
   userId: string
 }
 
+export type HistoryPage = {
+  items: QrCode[]
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+}
+
 const HISTORY_TTL_SECONDS = Number(process.env.REDIS_HISTORY_TTL ?? '60')
 
-const safeParseHistory = (raw: string | null): QrCode[] | null => {
-  if (!raw) return null
+const readCachedPage = async (key: string): Promise<HistoryPage | null> => {
   try {
-    return JSON.parse(raw) as QrCode[]
+    const raw = await redis.get(key)
+    if (!raw) return null
+    return JSON.parse(raw) as HistoryPage
   } catch {
     return null
   }
 }
 
-const getCacheKey = (userId: string) => buildHistoryCacheKey(userId)
-
-const readCachedHistory = async (userId: string): Promise<QrCode[] | null> => {
-  const cacheKey = getCacheKey(userId)
+const cachePage = async (key: string, page: HistoryPage): Promise<void> => {
   try {
-    const cached = await redis.get(cacheKey)
-    const parsed = safeParseHistory(cached)
-    if (!parsed && cached) {
-      await redis.del(cacheKey)
-    }
-    return parsed
-  } catch {
-    return null
-  }
-}
-
-const cacheHistory = async (userId: string, items: QrCode[]): Promise<void> => {
-  try {
-    await redis.set(getCacheKey(userId), JSON.stringify(items), 'EX', HISTORY_TTL_SECONDS)
+    await redis.set(key, JSON.stringify(page), 'EX', HISTORY_TTL_SECONDS)
   } catch {
     // cache is optional
   }
@@ -46,7 +39,9 @@ const cacheHistory = async (userId: string, items: QrCode[]): Promise<void> => {
 
 const invalidateHistoryCache = async (userId: string): Promise<void> => {
   try {
-    await redis.del(getCacheKey(userId))
+    const pattern = buildHistoryCachePattern(userId)
+    const keys = await redis.keys(pattern)
+    if (keys.length > 0) await redis.del(...keys)
   } catch {
     // cache is optional
   }
@@ -73,19 +68,28 @@ export const qrService = {
     return qr
   },
 
-  async list(userId: string) {
-    const cached = await readCachedHistory(userId)
-    if (cached) {
-      return cached
-    }
+  async list(userId: string, page = 1, limit = 6): Promise<HistoryPage> {
+    const cacheKey = buildHistoryCacheKey(userId, page, limit)
+    const cached = await readCachedPage(cacheKey)
+    if (cached) return cached
 
-    return prisma.qrCode.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-    }).then((items) => {
-      void cacheHistory(userId, items)
-      return items
-    })
+    const skip = (page - 1) * limit
+    const [countResult, itemsResult] = await Promise.allSettled([
+      prisma.qrCode.count({ where: { userId } }),
+      prisma.qrCode.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+    ])
+
+    const total = countResult.status === 'fulfilled' ? countResult.value : 0
+    const items = itemsResult.status === 'fulfilled' ? itemsResult.value : []
+    const result: HistoryPage = { items, total, page, limit, totalPages: Math.ceil(total / limit) }
+
+    void cachePage(cacheKey, result)
+    return result
   },
 
   async getById(id: string, userId: string) {

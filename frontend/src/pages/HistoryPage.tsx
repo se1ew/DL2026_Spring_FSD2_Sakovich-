@@ -25,6 +25,9 @@ export type HistoryPageProps = {
 export const HistoryPage = (_props: HistoryPageProps) => {
   const { token } = useAuth()
   const [items, setItems] = useState<QrHistoryItem[]>([])
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dlMenuId, setDlMenuId] = useState<string | null>(null)
@@ -43,7 +46,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     return () => document.removeEventListener('mousedown', handler)
   }, [dlMenuId])
 
-  const loadHistory = useCallback(async () => {
+  const loadHistory = useCallback(async (targetPage: number) => {
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
@@ -52,13 +55,15 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     setError(null)
     try {
       if (!token) throw new Error('Session expired')
-      const res = await fetch(`${API_BASE_URL}/api/qr`, {
+      const res = await fetch(`${API_BASE_URL}/api/qr?page=${targetPage}&limit=6`, {
         headers: { Authorization: `Bearer ${token}` },
         signal: controller.signal,
       })
       const payload = await res.json()
       if (!res.ok) throw new Error(payload.error || 'Failed to load history')
       setItems(payload.items ?? [])
+      setTotal(payload.total ?? 0)
+      setTotalPages(payload.totalPages ?? 1)
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return
       setError(err instanceof Error ? err.message : 'Failed to load history')
@@ -68,9 +73,9 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   }, [token])
 
   useEffect(() => {
-    loadHistory()
+    loadHistory(page)
     return () => abortRef.current?.abort()
-  }, [loadHistory])
+  }, [loadHistory, page])
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -111,7 +116,12 @@ export const HistoryPage = (_props: HistoryPageProps) => {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (res.ok) {
-        setItems((prev) => prev.filter((i) => i.id !== item.id))
+        setItems((prev) => {
+          const next = prev.filter((i) => i.id !== item.id)
+          if (next.length === 0 && page > 1) setPage((p) => p - 1)
+          return next
+        })
+        setTotal((t) => Math.max(0, t - 1))
       }
     } catch {
       // silent
@@ -186,6 +196,30 @@ export const HistoryPage = (_props: HistoryPageProps) => {
           )
         })}
       </div>
+
+      {totalPages > 1 && (
+        <div className="hist-pagination">
+          <button
+            type="button"
+            className="hist-btn"
+            disabled={page <= 1 || loading}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            ← Prev
+          </button>
+          <span className="hist-page-info">
+            {page} / {totalPages} &nbsp;·&nbsp; {total} total
+          </span>
+          <button
+            type="button"
+            className="hist-btn"
+            disabled={page >= totalPages || loading}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Next →
+          </button>
+        </div>
+      )}
     </div>
   )
 }
