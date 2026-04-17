@@ -1,138 +1,138 @@
 # QR Code Generator
 
-> A modern full-stack QR code generator with real-time analytics, custom styling, dynamic redirects, vCard support, and draggable logo overlay.
+> Современный full-stack генератор QR-кодов с аналитикой в реальном времени, кастомизацией внешнего вида, динамическими редиректами, поддержкой vCard и перетаскиваемым логотипом.
 
-## 🚀 Quick Start
+## 🚀 Быстрый старт
 
 ```bash
-cp backend/.env.example backend/.env   # set JWT_SECRET
+cp backend/.env.example backend/.env   # задать JWT_SECRET
 docker compose up --build
 ```
 
-Open **http://localhost:5173** — register and start generating.
+Открыть **http://localhost:5173** — зарегистрироваться и начать генерировать.
 
 ---
 
-## 📸 Preview
+## 📸 Скриншоты
 
-| Generator | History | Projects |
+| Генератор | История | Проекты |
 |---|---|---|
-| ![Generator](docs/screenshots/generator.png) | ![History](docs/screenshots/history.png) | ![Projects](docs/screenshots/projects.png) |
+| ![Генератор](docs/screenshots/generator.png) | ![История](docs/screenshots/history.png) | ![Проекты](docs/screenshots/projects.png) |
 
-> No screenshots yet? Run the app and add them to `docs/screenshots/`.
+> Скриншоты ещё не добавлены? Запусти приложение и положи файлы в `docs/screenshots/`.
 
 ---
 
-## 🌐 Architecture
+## 🌐 Архитектура
 
 ```
-Browser (React SPA)
+Браузер (React SPA)
         │  REST + WebSocket
         ▼
-  Express API  ──── Redis (cache + views)
+  Express API  ──── Redis (кэш + счётчики просмотров)
         │
    Prisma ORM
         │
    PostgreSQL
 ```
 
-**Request flow:**
-1. `POST /api/qr` → validate (Zod) → generate image (qrcode lib) → save to DB → invalidate Redis cache → emit Socket.IO event
-2. `GET /api/qr` → check Redis cache → on miss: DB query → cache result
-3. `GET /r/:id` → DB lookup `dynamicUrl` → `302 redirect`
+**Поток запросов:**
+1. `POST /api/qr` → валидация (Zod) → генерация изображения → сохранение в БД → инвалидация Redis-кэша → событие Socket.IO
+2. `GET /api/qr` → проверка Redis-кэша → при промахе: запрос в БД → кэширование результата
+3. `GET /r/:id` → поиск `dynamicUrl` в БД → `302 redirect`
 
 ---
 
-## 🛠 Tech Stack
+## 🛠 Технологический стек
 
-| Layer | Technologies |
+| Слой | Технологии |
 |---|---|
-| **Frontend** | React 18, TypeScript, Vite, React Konva, react-colorful |
-| **Backend** | Node.js 20, Express 5, TypeScript, Zod |
-| **Database** | PostgreSQL 16 + Prisma ORM |
-| **Cache** | Redis 7 (ioredis) |
-| **Realtime** | Socket.IO (WebSocket) |
-| **Auth** | JWT (access) + refresh tokens (DB rotation) |
-| **Infrastructure** | Docker, docker-compose |
-| **Quality** | ESLint, Prettier, Vitest, Jest |
-| **Security** | Helmet.js, express-rate-limit |
-| **Logging** | Morgan |
+| **Фронтенд** | React 18, TypeScript, Vite, React Konva, react-colorful |
+| **Бэкенд** | Node.js 20, Express 5, TypeScript, Zod |
+| **База данных** | PostgreSQL 16 + Prisma ORM |
+| **Кэш** | Redis 7 (ioredis) |
+| **Реалтайм** | Socket.IO (WebSocket) |
+| **Авторизация** | JWT (access) + refresh-токены (ротация в БД) |
+| **Инфраструктура** | Docker, docker-compose |
+| **Качество кода** | ESLint, Prettier, Vitest, Jest |
+| **Безопасность** | Helmet.js, express-rate-limit |
+| **Логирование** | Morgan |
 
-## 🤔 Why this stack?
+## 🤔 Почему такой стек?
 
-**Why React Konva?**  
-The logo overlay feature requires a draggable, resizable element positioned on top of the QR canvas. Konva provides a 2D canvas abstraction with built-in drag/resize transformers. The alternative (plain SVG + pointer events) would require ~200 lines of manual hit-testing and transform math — Konva handles it in 20 lines.
+**Почему React Konva, а не SVG?**  
+Функция наложения логотипа требует перетаскиваемого и масштабируемого элемента поверх canvas с QR-кодом. Konva предоставляет готовые трансформеры (drag + resize). Альтернатива — чистый SVG + pointer events — потребовала бы ~200 строк ручной математики хитбоксов. Konva решает это в 20 строках.
 
-**Why Redis for view counts instead of PostgreSQL?**  
-View counts are incremented on every public QR scan (`INCR qr:views:{id}`). An atomic Redis `INCR` takes ~0.1ms with no locking, vs a PostgreSQL `UPDATE ... SET views = views + 1` which requires a row lock. At scale, counter increments would create lock contention on hot rows.
+**Почему Redis для счётчиков просмотров, а не PostgreSQL?**  
+Счётчик инкрементируется при каждом сканировании публичной ссылки (`INCR qr:views:{id}`). Атомарный Redis `INCR` занимает ~0.1 мс без блокировок, тогда как `UPDATE ... SET views = views + 1` в PostgreSQL требует блокировки строки. При нагрузке это создаёт lock contention на горячих строках.
 
-**Why `Promise.allSettled` for history pagination?**  
-`COUNT(*)` and `findMany` are independent queries. If the count query fails (e.g. timeout), `allSettled` still returns the items — pagination degrades gracefully instead of returning 500.
+**Почему `Promise.allSettled` в пагинации?**  
+`COUNT(*)` и `findMany` — независимые запросы. Если запрос count завершится с ошибкой (например, по таймауту), `allSettled` всё равно вернёт элементы — пагинация деградирует gracefully вместо 500.
 
-**Why offset pagination instead of cursor?**  
-The history page has low cardinality per user (< 1000 QR codes typical) and the user always starts from page 1. Offset pagination is simpler and acceptable at this scale. Cursor-based would be needed at 100k+ records per user.
+**Почему offset-пагинация, а не cursor?**  
+У каждого пользователя мало QR-кодов (обычно < 1000), и навигация всегда начинается со страницы 1. Offset-пагинация проще и оправдана на данном масштабе. Cursor-based потребовался бы при 100k+ записей на пользователя.
 
-## ✨ Features
+## ✨ Возможности
 
-### QR Generator
-- PNG and SVG output — generated in parallel via `Promise.allSettled`
-- Configurable color, background, error correction level (L/M/Q/H), margin, size
-- Live preview on every parameter change
+### Генератор QR-кодов
+- Генерация в форматах **PNG** и **SVG** — параллельно через `Promise.allSettled`
+- Настройка цвета, фона, уровня коррекции ошибок (L/M/Q/H), отступа, размера
+- Live preview обновляется при каждом изменении параметров
 
-### Logo Overlay
-- Drag-and-drop or file picker logo upload
-- Draggable + resizable logo positioned over the QR (powered by React Konva)
-- Auto-constrained — logo cannot cover the QR finder patterns
+### Логотип
+- Загрузка через drag-and-drop или выбор файла
+- Перетаскивание и ресайз логотипа поверх QR (React Konva)
+- Автоограничение позиции — логотип не может перекрыть угловые маркеры QR
 
-### History
-- Paginated QR history (6 per page)
-- Download (PNG / SVG), copy public link, delete
+### История
+- Пагинированная история QR-кодов (6 на страницу)
+- Скачивание (PNG / SVG), копирование публичной ссылки, удаление
 
-### Realtime Analytics
-- Public link per QR (`/api/qr/:id/view`) — no auth required
-- View counter stored in Redis; owner gets a WebSocket notification on each scan
+### Реалтайм-аналитика
+- Публичная ссылка на каждый QR (`/api/qr/:id/view`) — без авторизации
+- Счётчик просмотров в Redis; владелец получает WebSocket-уведомление при каждом сканировании
 
-### vCard QR codes
-- Mode toggle: **Text/URL** or **vCard** (business card)
-- Fill name, org, phone, email, website → auto-generates vCard 3.0 string
-- Scan with any phone camera → "Save contact" prompt
+### vCard QR-коды
+- Переключатель режима: **Текст/URL** или **vCard** (визитка)
+- Заполнение полей (имя, организация, телефон, email, сайт) → автогенерация строки vCard 3.0
+- Сканирование камерой телефона → предложение «Сохранить контакт»
 
-### Dynamic QR codes
-- Enable **Dynamic QR** at creation — the QR encodes `/r/:id`, not the final URL
-- Change the target URL anytime via **Edit target** in History
-- `GET /r/:id` performs a `302` redirect to the current `dynamicUrl`
+### Динамические QR-коды
+- Чекбокс «Динамический QR» при создании — QR кодирует `/r/:id`, а не конечный адрес
+- Целевой URL можно менять в любое время через кнопку **Edit target** в истории
+- `GET /r/:id` выполняет `302`-редирект на актуальный `dynamicUrl`
 
-### Projects / Series
-- Create named collections and group QR codes into them
-- Assign at creation via dropdown, or move later from History
-- **View QRs** modal per project — add/remove QR codes inline
+### Проекты / Серии
+- Создание именованных коллекций и группировка QR-кодов
+- Привязка при создании через выпадающий список или перенос из истории
+- Модальное окно **«View QRs»** для каждого проекта — добавление/удаление QR inline
 
-## 🏛 Architectural Decisions
+## 🏛 Архитектурные решения
 
-| Pattern | Where & Why |
+| Паттерн | Где и зачем |
 |---|---|
-| `AbortController` | Cancels in-flight fetch on component unmount or re-submit — prevents stale state updates |
-| Rate limiting | `express-rate-limit`: 20 req/15 min on auth, 30 req/min on QR creation |
-| Refresh token rotation | `crypto.randomBytes(40)`, stored in DB, TTL 30 days; old token deleted on each use |
-| `Promise.allSettled` | Parallel `COUNT` + `findMany` for pagination — count failure degrades gracefully |
-| `Cache-Control: no-store` | All private/mutating endpoints |
-| `Cache-Control: public, max-age=60` | Public QR view page |
-| Redis per-page cache | History cached per `page × limit` combo; invalidated by pattern `qr:history:{uid}:*` |
-| Git Flow | `main` ← `develop` ← `feature/*`; all merges via `--no-ff` |
+| `AbortController` | Отмена in-flight запросов при размонтировании компонента или повторном сабмите |
+| Rate limiting | `express-rate-limit`: 20 req/15 мин на auth, 30 req/мин на создание QR |
+| Ротация refresh-токенов | `crypto.randomBytes(40)`, хранится в БД, TTL 30 дней; старый токен удаляется при каждом использовании |
+| `Promise.allSettled` | Параллельный `COUNT` + `findMany` в пагинации — ошибка count не ломает ответ |
+| `Cache-Control: no-store` | Все приватные и мутирующие эндпоинты |
+| `Cache-Control: public, max-age=60` | Публичная страница просмотра QR |
+| Redis per-page cache | История кэшируется на каждую комбинацию `page × limit`; инвалидация по паттерну `qr:history:{uid}:*` |
+| Git Flow | `main` ← `develop` ← `feature/*`; все слияния через `--no-ff` |
 
-## 📁 Project Structure
+## 📁 Структура проекта
 
 ```
 .
 ├── backend/
-│   ├── prisma/             # Schema + migrations
+│   ├── prisma/             # Схема и миграции
 │   └── src/
-│       ├── controllers/    # Request handlers
+│       ├── controllers/    # Обработчики запросов
 │       ├── middleware/     # auth, validate, rateLimit, cache, errorHandler
-│       ├── lib/            # prisma client, redis client, Socket.IO
-│       ├── routes/         # Express routers
-│       ├── services/       # Business logic (qrService, projectService, userService)
-│       └── types/          # Zod schemas + inferred types
+│       ├── lib/            # Prisma client, Redis client, Socket.IO
+│       ├── routes/         # Express-роутеры
+│       ├── services/       # Бизнес-логика (qrService, projectService, userService)
+│       └── types/          # Zod-схемы и выведенные типы
 ├── frontend/
 │   └── src/
 │       ├── components/     # QrPreviewStage, ColorPicker, VCardForm, ProjectQrModal
@@ -142,90 +142,90 @@ The history page has low cardinality per user (< 1000 QR codes typical) and the 
 └── docker-compose.yml
 ```
 
-## 🧪 Tests
+## 🧪 Тесты
 
 ```bash
-npm test --workspace=backend   # Jest: qrService, Zod schemas
+npm test --workspace=backend   # Jest: qrService, Zod-схемы
 npm test --workspace=frontend  # Vitest: constrainLogoPos, validateQrForm
 ```
 
-CI runs automatically via GitHub Actions on every push to `main`, `develop`, `feature/*`.
+CI запускается автоматически через GitHub Actions при каждом push в `main`, `develop`, `feature/*`.
 
-## ▶ Running Locally
+## ▶ Запуск
 
-### Docker (recommended)
+### Docker (рекомендуется)
 
 ```bash
-cp backend/.env.example backend/.env  # set JWT_SECRET
+cp backend/.env.example backend/.env  # задать JWT_SECRET
 docker compose up --build
 ```
 
-| Service | URL |
+| Сервис | URL |
 |---|---|
-| Frontend | http://localhost:5173 |
+| Фронтенд | http://localhost:5173 |
 | Backend API | http://localhost:3000 |
 | PostgreSQL | localhost:5432 |
 | Redis | localhost:6379 |
 
-### Dev mode (without Docker)
+### Локальная разработка (без Docker)
 
 ```bash
-# Start infra only
+# Только инфраструктура
 docker compose up postgres redis -d
 
-# Backend
+# Бэкенд
 cd backend && cp .env.example .env
 npm install && npx prisma migrate dev && npm run dev   # :3000
 
-# Frontend (separate terminal)
+# Фронтенд (отдельный терминал)
 cd frontend && npm install && npm run dev              # :5173
 ```
 
-## ⚙️ Environment Variables
+## ⚙️ Переменные окружения
 
 ### `backend/.env`
 
-| Variable | Default | Description |
+| Переменная | По умолчанию | Описание |
 |---|---|---|
-| `DATABASE_URL` | — | PostgreSQL connection string |
-| `JWT_SECRET` | — | JWT signing secret |
-| `JWT_EXPIRES_IN` | `7d` | Access token lifetime |
-| `REDIS_URL` | `redis://localhost:6379` | Redis connection URL |
-| `REDIS_HISTORY_TTL` | `60` | History cache TTL (seconds) |
-| `CORS_ORIGIN` | `http://localhost:5173` | Allowed CORS origin |
-| `PORT` | `3000` | HTTP server port |
+| `DATABASE_URL` | — | Строка подключения к PostgreSQL |
+| `JWT_SECRET` | — | Секрет для подписи JWT |
+| `JWT_EXPIRES_IN` | `7d` | Время жизни access-токена |
+| `REDIS_URL` | `redis://localhost:6379` | URL Redis |
+| `REDIS_HISTORY_TTL` | `60` | TTL кэша истории (секунды) |
+| `CORS_ORIGIN` | `http://localhost:5173` | Разрешённый CORS-origin |
+| `PORT` | `3000` | Порт HTTP-сервера |
 
 ### `frontend/.env`
 
-| Variable | Default | Description |
+| Переменная | По умолчанию | Описание |
 |---|---|---|
-| `VITE_API_URL` | `http://localhost:3000` | Backend base URL |
+| `VITE_API_URL` | `http://localhost:3000` | Базовый URL бэкенда |
 
-## 📡 API Reference
+## 📡 API
 
-| Method | Path | Auth | Description |
+| Метод | Путь | Auth | Описание |
 |---|---|---|---|
-| `POST` | `/api/auth/register` | — | Register new user |
-| `POST` | `/api/auth/login` | — | Login, returns `token` + `refreshToken` |
-| `GET` | `/api/auth/me` | ✓ | Verify token, return user |
-| `POST` | `/api/auth/refresh` | — | Exchange refresh token for new access token |
-| `POST` | `/api/auth/logout` | — | Revoke refresh token |
-| `POST` | `/api/qr` | ✓ | Create QR code |
-| `GET` | `/api/qr?page=1&limit=6` | ✓ | Paginated history |
-| `GET` | `/api/qr?projectId=uuid` | ✓ | History filtered by project |
-| `GET` | `/api/qr/:id` | ✓ | Get single QR |
-| `PATCH` | `/api/qr/:id` | ✓ | Update `dynamicUrl` or `projectId` |
-| `DELETE` | `/api/qr/:id` | ✓ | Delete QR |
-| `GET` | `/api/qr/:id/view` | — | Public view page (increments counter) |
-| `GET` | `/r/:id` | — | Dynamic QR redirect → `302` to `dynamicUrl` |
-| `GET` | `/api/projects` | ✓ | List user projects |
-| `POST` | `/api/projects` | ✓ | Create project |
-| `DELETE` | `/api/projects/:id` | ✓ | Delete project |
-| `GET` | `/health` | — | Health check |
+| `POST` | `/api/auth/register` | — | Регистрация |
+| `POST` | `/api/auth/login` | — | Вход, возвращает `token` + `refreshToken` |
+| `GET` | `/api/auth/me` | ✓ | Проверка токена, возврат пользователя |
+| `POST` | `/api/auth/refresh` | — | Обмен refresh-токена на новый access |
+| `POST` | `/api/auth/logout` | — | Отзыв refresh-токена |
+| `POST` | `/api/qr` | ✓ | Создать QR-код |
+| `GET` | `/api/qr?page=1&limit=6` | ✓ | Пагинированная история |
+| `GET` | `/api/qr?projectId=uuid` | ✓ | История с фильтром по проекту |
+| `GET` | `/api/qr/:id` | ✓ | Получить QR по ID |
+| `PATCH` | `/api/qr/:id` | ✓ | Обновить `dynamicUrl` или `projectId` |
+| `DELETE` | `/api/qr/:id` | ✓ | Удалить QR |
+| `GET` | `/api/qr/:id/view` | — | Публичный просмотр (счётчик++) |
+| `GET` | `/r/:id` | — | Редирект динамического QR → `302` на `dynamicUrl` |
+| `GET` | `/api/projects` | ✓ | Список проектов пользователя |
+| `POST` | `/api/projects` | ✓ | Создать проект |
+| `DELETE` | `/api/projects/:id` | ✓ | Удалить проект |
+| `GET` | `/health` | — | Healthcheck |
 
-### Examples
+### Примеры запросов
 
-**Register / Login**
+**Вход**
 ```http
 POST /api/auth/login
 Content-Type: application/json
@@ -240,7 +240,7 @@ Content-Type: application/json
 }
 ```
 
-**Create QR code**
+**Создание QR-кода**
 ```http
 POST /api/qr
 Authorization: Bearer <token>
@@ -256,7 +256,7 @@ Content-Type: application/json
   "margin": 2,
   "dynamic": true,
   "dynamicUrl": "https://example.com",
-  "projectId": "uuid-optional"
+  "projectId": "uuid-опционально"
 }
 ```
 ```json
@@ -273,16 +273,16 @@ Content-Type: application/json
 }
 ```
 
-**Update dynamic URL**
+**Обновление динамического URL**
 ```http
 PATCH /api/qr/:id
 Authorization: Bearer <token>
 Content-Type: application/json
 
-{ "dynamicUrl": "https://new-destination.com" }
+{ "dynamicUrl": "https://новый-адрес.com" }
 ```
 
-**Paginated history**
+**Пагинированная история**
 ```http
 GET /api/qr?page=1&limit=6&projectId=uuid
 Authorization: Bearer <token>
