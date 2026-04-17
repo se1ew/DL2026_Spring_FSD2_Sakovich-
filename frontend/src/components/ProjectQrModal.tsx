@@ -15,9 +15,10 @@ type Props = {
   project: Project
   token: string
   onClose: () => void
+  onProjectsChange?: () => void
 }
 
-export const ProjectQrModal = ({ project, token, onClose }: Props) => {
+export const ProjectQrModal = ({ project, token, onClose, onProjectsChange }: Props) => {
   const [projectQrs, setProjectQrs] = useState<QrHistoryItem[]>([])
   const [allQrs, setAllQrs] = useState<QrHistoryItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -61,6 +62,7 @@ export const ProjectQrModal = ({ project, token, onClose }: Props) => {
     if (res.ok) {
       setProjectQrs(prev => prev.filter(q => q.id !== qr.id))
       setAllQrs(prev => prev.map(q => q.id === qr.id ? { ...q, projectId: null } : q))
+      onProjectsChange?.()
     }
   }
 
@@ -74,6 +76,7 @@ export const ProjectQrModal = ({ project, token, onClose }: Props) => {
       const updated = { ...qr, projectId: project.id }
       setProjectQrs(prev => [...prev, updated])
       setAllQrs(prev => prev.map(q => q.id === qr.id ? updated : q))
+      onProjectsChange?.()
     }
   }
 
