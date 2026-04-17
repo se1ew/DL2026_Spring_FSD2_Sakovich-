@@ -2,14 +2,14 @@ import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useProjects } from '../hooks/useProjects'
 import { type Project } from '../types/qr'
+import { ProjectQrModal } from '../components/ProjectQrModal'
 
-type Props = {
-  onSelectProject?: (project: Project) => void
-}
+type Props = Record<string, never>
 
-export const ProjectsPage = ({ onSelectProject }: Props) => {
+export const ProjectsPage = (_props: Props) => {
   const { token } = useAuth()
   const { projects, loading, create, remove } = useProjects(token)
+  const [activeProject, setActiveProject] = useState<Project | null>(null)
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -31,6 +31,7 @@ export const ProjectsPage = ({ onSelectProject }: Props) => {
   }
 
   return (
+    <>
     <div className="projects-page">
       <div className="projects-header">
         <h2>Projects / Series</h2>
@@ -65,15 +66,13 @@ export const ProjectsPage = ({ onSelectProject }: Props) => {
               <span className="project-count">{project._count?.qrCodes ?? 0} QR codes</span>
             </div>
             <div className="project-card-actions">
-              {onSelectProject && (
-                <button
-                  type="button"
-                  className="hist-btn"
-                  onClick={() => onSelectProject(project)}
-                >
-                  View QRs
-                </button>
-              )}
+              <button
+                type="button"
+                className="hist-btn"
+                onClick={() => setActiveProject(project)}
+              >
+                View QRs
+              </button>
               <button
                 type="button"
                 className="hist-card-delete"
@@ -92,5 +91,14 @@ export const ProjectsPage = ({ onSelectProject }: Props) => {
         ))}
       </div>
     </div>
+
+    {activeProject && token && (
+      <ProjectQrModal
+        project={activeProject}
+        token={token}
+        onClose={() => setActiveProject(null)}
+      />
+    )}
+    </>
   )
 }
