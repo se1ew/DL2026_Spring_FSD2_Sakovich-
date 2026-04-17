@@ -6,6 +6,7 @@ import { router as authRouter } from './routes/auth'
 import { router as qrRouter } from './routes/qr'
 import { errorHandler } from './middleware/errorHandler'
 import { initRealtime } from './lib/realtime'
+import { noStore } from './middleware/cache'
 
 dotenv.config()
 
@@ -16,7 +17,7 @@ const PORT = process.env.PORT || 3000
 app.use(cors({ origin: process.env.CORS_ORIGIN ?? 'http://localhost:5173' }))
 app.use(express.json())
 
-app.get('/health', (_req, res) => {
+app.get('/health', noStore, (_req, res) => {
   res.json({ status: 'ok' })
 })
 
