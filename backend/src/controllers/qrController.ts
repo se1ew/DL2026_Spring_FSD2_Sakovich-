@@ -15,6 +15,14 @@ type QrPublicView = Pick<
   'id' | 'data' | 'imageUrl' | 'userId'
 >
 
+const escapeHtml = (str: string) =>
+  str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+
 const buildQrOptions = (body: QrRequest): QRCode.QRCodeToDataURLOptions => {
   return {
     width: body.size,
@@ -178,7 +186,7 @@ a{color:#00d4aa;text-decoration:none}
 </head>
 <body>
 ${imgTag}
-<p>Content: <a href="${data}" target="_blank" rel="noopener">${data}</a></p>
+<p>Content: <a href="${escapeHtml(data)}" target="_blank" rel="noopener">${escapeHtml(data)}</a></p>
 <p>Views: ${viewCount}</p>
 </body>
 </html>`)

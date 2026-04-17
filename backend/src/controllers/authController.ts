@@ -91,40 +91,50 @@ export const login = async (
 export const refreshAccessToken = async (
   req: Request<object, unknown, { refreshToken: string }>,
   res: Response,
+  next: NextFunction,
 ): Promise<void> => {
-  const { refreshToken } = req.body
-  if (!refreshToken) {
-    res.status(400).json({ error: 'refreshToken required' })
-    return
-  }
+  try {
+    const { refreshToken } = req.body
+    if (!refreshToken) {
+      res.status(400).json({ error: 'refreshToken required' })
+      return
+    }
 
-  const stored = await prisma.refreshToken.findUnique({ where: { token: refreshToken } })
-  if (!stored || stored.expiresAt < new Date()) {
-    res.status(401).json({ error: 'Invalid or expired refresh token' })
-    return
-  }
+    const stored = await prisma.refreshToken.findUnique({ where: { token: refreshToken } })
+    if (!stored || stored.expiresAt < new Date()) {
+      res.status(401).json({ error: 'Invalid or expired refresh token' })
+      return
+    }
 
-  await prisma.refreshToken.delete({ where: { id: stored.id } })
-  const user = await userService.findById(stored.userId)
-  if (!user) {
-    res.status(401).json({ error: 'User not found' })
-    return
-  }
+    await prisma.refreshToken.delete({ where: { id: stored.id } })
+    const user = await userService.findById(stored.userId)
+    if (!user) {
+      res.status(401).json({ error: 'User not found' })
+      return
+    }
 
-  const token = buildToken(user.id)
-  const newRefreshToken = await createRefreshToken(user.id)
-  res.json({ token, refreshToken: newRefreshToken, ...buildResponse(user) })
+    const token = buildToken(user.id)
+    const newRefreshToken = await createRefreshToken(user.id)
+    res.json({ token, refreshToken: newRefreshToken, ...buildResponse(user) })
+  } catch (error) {
+    next(error)
+  }
 }
 
 export const logout = async (
   req: Request<object, unknown, { refreshToken?: string }>,
   res: Response,
+  next: NextFunction,
 ): Promise<void> => {
-  const { refreshToken } = req.body
-  if (refreshToken) {
-    await prisma.refreshToken.deleteMany({ where: { token: refreshToken } }).catch(() => {})
+  try {
+    const { refreshToken } = req.body
+    if (refreshToken) {
+      await prisma.refreshToken.deleteMany({ where: { token: refreshToken } }).catch(() => {})
+    }
+    res.json({ ok: true })
+  } catch (error) {
+    next(error)
   }
-  res.json({ ok: true })
 }
 
 export const verifyToken = async (
