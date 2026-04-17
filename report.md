@@ -36,10 +36,9 @@
 
 17.04
 
-Применил TypeScript Utility Types в проекте: Omit, Pick, Partial<Record<...>>, Required, Awaited<ReturnType<...>>, Record — на бэкенде (qrService, qrController) и фронтенде (types/qr.ts, App.tsx).
-Добавил AbortController для отмены in-flight fetch-запросов при размонтировании компонента и повторном вызове: в HistoryPage (загрузка истории) и App (отправка формы).
-Заменил Promise.all на Promise.allSettled для параллельной генерации PNG и SVG в live preview — провал одного формата больше не блокирует другой; применил также в сервисе пагинации для параллельного count + findMany.
-Добавил Cache-Control заголовки: middleware noStore для всех приватных и мутирующих эндпоинтов, publicShortCache (public, max-age=60, stale-while-revalidate=300) для публичной страницы просмотра QR.
-Реализовал пагинацию истории QR-кодов: параметры page и limit на бэкенде, Redis-кэш отдельно на каждую страницу с инвалидацией по паттерну, кнопки Prev / Next на фронтенде.
-Обновил README: полное описание стека, возможностей, архитектурных решений, структуры проекта и API.
-Все фичи реализованы через Git Flow: отдельные feature-ветки, --no-ff merge в develop и main.
+Применил TypeScript Utility Types: Omit, Pick, Partial, Required, Record, Awaited, ReturnType.
+Добавил AbortController для отмены запросов при уходе со страницы и повторной отправке формы.
+Заменил Promise.all на Promise.allSettled в live preview и пагинации.
+Добавил Cache-Control заголовки на бэкенде.
+Реализовал пагинацию истории QR-кодов.
+Обновил README.
