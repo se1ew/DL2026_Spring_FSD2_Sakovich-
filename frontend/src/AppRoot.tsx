@@ -4,12 +4,21 @@ import { HistoryPage } from './pages/HistoryPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { useAuth } from './hooks/useAuth'
 import { AuthScreen } from './components/AuthScreen'
+import { type Project } from './types/qr'
 
 export type Route = 'generator' | 'history' | 'projects'
 
 export const AppRoot = () => {
   const { user, logout, isBootstrapping } = useAuth()
   const [route, setRoute] = useState<Route>('generator')
+  const [projectFilter, setProjectFilter] = useState<Project | null>(null)
+
+  const goToFilteredHistory = (project: Project) => {
+    setProjectFilter(project)
+    setRoute('history')
+  }
+
+  const clearProjectFilter = () => setProjectFilter(null)
 
   if (isBootstrapping) {
     return (
@@ -60,8 +69,16 @@ export const AppRoot = () => {
 
       <main className="shell-body">
         {route === 'generator' && <App />}
-        {route === 'history' && <HistoryPage onBack={() => setRoute('generator')} />}
-        {route === 'projects' && <ProjectsPage />}
+        {route === 'history' && (
+          <HistoryPage
+            onBack={() => setRoute('generator')}
+            projectFilter={projectFilter}
+            onClearFilter={clearProjectFilter}
+          />
+        )}
+        {route === 'projects' && (
+          <ProjectsPage onSelectProject={goToFilteredHistory} />
+        )}
       </main>
     </div>
   )

@@ -74,16 +74,20 @@ export const qrService = {
     return qr
   },
 
-  async list(userId: string, page = 1, limit = 6): Promise<HistoryPage> {
-    const cacheKey = buildHistoryCacheKey(userId, page, limit)
-    const cached = await readCachedPage(cacheKey)
-    if (cached) return cached
+  async list(userId: string, page = 1, limit = 6, projectId?: string): Promise<HistoryPage> {
+    const where = { userId, ...(projectId ? { projectId } : {}) }
+
+    if (!projectId) {
+      const cacheKey = buildHistoryCacheKey(userId, page, limit)
+      const cached = await readCachedPage(cacheKey)
+      if (cached) return cached
+    }
 
     const skip = (page - 1) * limit
     const [countResult, itemsResult] = await Promise.allSettled([
-      prisma.qrCode.count({ where: { userId } }),
+      prisma.qrCode.count({ where }),
       prisma.qrCode.findMany({
-        where: { userId },
+        where,
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
@@ -94,7 +98,7 @@ export const qrService = {
     const items = itemsResult.status === 'fulfilled' ? itemsResult.value : []
     const result: HistoryPage = { items, total, page, limit, totalPages: Math.ceil(total / limit) }
 
-    void cachePage(cacheKey, result)
+    if (!projectId) void cachePage(buildHistoryCacheKey(userId, page, limit), result)
     return result
   },
 
