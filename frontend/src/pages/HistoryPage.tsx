@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { HISTORY_UPDATED_EVENT } from '../constants/events'
-import { type QrHistoryItem } from '../types/qr'
+import { type QrHistoryItem, type Project } from '../types/qr'
 import { useAuth } from '../hooks/useAuth'
+import { useProjects } from '../hooks/useProjects'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
@@ -20,10 +21,13 @@ const normalizeThumb = (item: QrHistoryItem) => {
 
 export type HistoryPageProps = {
   onBack?: () => void
+  projectFilter?: Project | null
+  onClearFilter?: () => void
 }
 
-export const HistoryPage = (_props: HistoryPageProps) => {
+export const HistoryPage = ({ projectFilter, onClearFilter }: HistoryPageProps) => {
   const { token } = useAuth()
+  const { projects } = useProjects(token)
   const [items, setItems] = useState<QrHistoryItem[]>([])
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -35,6 +39,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   const [editDynamicId, setEditDynamicId] = useState<string | null>(null)
   const [editDynamicUrl, setEditDynamicUrl] = useState('')
   const [savingDynamic, setSavingDynamic] = useState(false)
+  const [moveId, setMoveId] = useState<string | null>(null)
   const dlMenuRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
@@ -49,6 +54,10 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     return () => document.removeEventListener('mousedown', handler)
   }, [dlMenuId])
 
+  useEffect(() => {
+    setPage(1)
+  }, [projectFilter])
+
   const loadHistory = useCallback(async (targetPage: number) => {
     abortRef.current?.abort()
     const controller = new AbortController()
@@ -58,7 +67,8 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     setError(null)
     try {
       if (!token) throw new Error('Session expired')
-      const res = await fetch(`${API_BASE_URL}/api/qr?page=${targetPage}&limit=6`, {
+      const projectParam = projectFilter?.id ? `&projectId=${projectFilter.id}` : ''
+      const res = await fetch(`${API_BASE_URL}/api/qr?page=${targetPage}&limit=6${projectParam}`, {
         headers: { Authorization: `Bearer ${token}` },
         signal: controller.signal,
       })
@@ -73,7 +83,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     } finally {
       if (!controller.signal.aborted) setLoading(false)
     }
-  }, [token])
+  }, [token, projectFilter])
 
   useEffect(() => {
     loadHistory(page)
@@ -135,6 +145,19 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     }
   }
 
+  const handleMoveToProject = async (item: QrHistoryItem, newProjectId: string | null) => {
+    if (!token) return
+    const res = await fetch(`${API_BASE_URL}/api/qr/${item.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ projectId: newProjectId }),
+    })
+    if (res.ok) {
+      setItems(prev => prev.map(i => i.id === item.id ? { ...i, projectId: newProjectId } : i))
+    }
+    setMoveId(null)
+  }
+
   const handleDelete = async (item: QrHistoryItem) => {
     if (!token) return
     try {
@@ -158,7 +181,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   return (
     <div className="hist-page">
       <div className="hist-header">
-        <h2>History</h2>
+        <h2>History{projectFilter ? `: ${projectFilter.name}` : ''}</h2>
         <button type="button" className="btn-clear" onClick={() => setItems([])}>
           Clear history
         </button>
@@ -166,8 +189,16 @@ export const HistoryPage = (_props: HistoryPageProps) => {
 
       {loading && <p className="hist-status">Loading…</p>}
       {error && <p className="form-error">{error}</p>}
+      {projectFilter && (
+        <div className="filter-chip">
+          <span>Project: <strong>{projectFilter.name}</strong></span>
+          <button type="button" className="filter-chip-clear" onClick={onClearFilter}>×</button>
+        </div>
+      )}
       {!loading && !error && items.length === 0 && (
-        <p className="hist-status">No QR codes yet. Create your first one.</p>
+        <p className="hist-status">
+          {projectFilter ? 'No QR codes in this project yet.' : 'No QR codes yet. Create your first one.'}
+        </p>
       )}
 
       <div className="hist-cards">
@@ -244,6 +275,24 @@ export const HistoryPage = (_props: HistoryPageProps) => {
                   {item.dynamicUrl && editDynamicId !== item.id && (
                     <button type="button" className="hist-btn hist-btn-dynamic" onClick={() => handleEditDynamic(item)}>
                       Edit target
+                    </button>
+                  )}
+                  {moveId === item.id ? (
+                    <select
+                      className="hist-move-select"
+                      defaultValue={item.projectId ?? ''}
+                      onChange={e => handleMoveToProject(item, e.target.value || null)}
+                      onBlur={() => setMoveId(null)}
+                      autoFocus
+                    >
+                      <option value="">— No project —</option>
+                      {projects.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <button type="button" className="hist-btn" onClick={() => setMoveId(item.id)}>
+                      Move
                     </button>
                   )}
                 </div>

@@ -102,8 +102,9 @@ export const listQr = async (req: Request, res: Response, next: NextFunction): P
 
     const page = Math.max(1, parseInt(req.query.page as string) || 1)
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 6))
+    const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : undefined
 
-    const result = await qrService.list(userId, page, limit)
+    const result = await qrService.list(userId, page, limit, projectId)
     res.json(result)
   } catch (err) {
     next(err)
