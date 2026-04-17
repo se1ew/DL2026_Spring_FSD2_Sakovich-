@@ -1,5 +1,8 @@
 # QR Code Generator
 
+![CI](https://github.com/se1ew/DL2026_Spring_FSD2_Sakovich-/actions/workflows/ci.yml/badge.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+
 > Современный full-stack генератор QR-кодов с аналитикой в реальном времени, кастомизацией внешнего вида, динамическими редиректами, поддержкой vCard и перетаскиваемым логотипом.
 
 ## 🚀 Быстрый старт
