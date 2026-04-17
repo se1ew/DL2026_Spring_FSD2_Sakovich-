@@ -1,104 +1,104 @@
-# QR Code Generator
+# Генератор QR-кодов
 
-Full-stack web application for generating, customising, and managing QR codes.
+Full-stack веб-приложение для генерации, настройки и управления QR-кодами.
 
-## Tech Stack
+## Стек технологий
 
-| Layer | Technology |
+| Слой | Технология |
 |---|---|
-| Frontend | React 18, TypeScript, Vite, React Konva, react-colorful |
-| Backend | Node.js, Express, TypeScript, Socket.IO |
-| Database | PostgreSQL 16 + Prisma ORM |
-| Cache | Redis 7 |
-| Auth | JWT (Bearer token) |
-| Infra | Docker, docker-compose |
+| Фронтенд | React 18, TypeScript, Vite, React Konva, react-colorful |
+| Бэкенд | Node.js, Express, TypeScript, Socket.IO |
+| База данных | PostgreSQL 16 + Prisma ORM |
+| Кэш | Redis 7 |
+| Авторизация | JWT (Bearer token) |
+| Инфраструктура | Docker, docker-compose |
 
-## Features
+## Возможности
 
-- Generate QR codes (PNG / SVG) with custom foreground/background colours, error correction level, margin, and size
-- Upload a logo and place it on the QR with drag-and-drop; logo placement is automatically constrained to avoid the finder patterns
-- Real-time preview via React Konva canvas
-- History of generated QR codes with download (PNG or SVG), copy public link, and delete
-- Public shareable link for each QR (`/api/qr/:id/view`) — no auth required
-- View counter per QR stored in Redis; owner receives a live notification via WebSocket when someone opens the link
+- Генерация QR-кодов (PNG / SVG) с настройкой цвета, уровня коррекции ошибок, отступов и размера
+- Загрузка логотипа и его размещение на QR через drag-and-drop; логотип автоматически не даёт перекрыть угловые маркеры
+- Интерактивный превью на React Konva с перетаскиванием и ресайзом логотипа
+- История сгенерированных QR-кодов: скачивание (PNG или SVG), копирование публичной ссылки, удаление
+- Публичная ссылка на каждый QR (`/api/qr/:id/view`) — без авторизации
+- Счётчик просмотров в Redis; владелец получает уведомление в реальном времени через WebSocket при открытии ссылки
 
-## Prerequisites
+## Требования
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (includes docker-compose)
-- Node.js 20+ (for local development without Docker)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (включает docker-compose)
+- Node.js 20+ (для локальной разработки без Docker)
 
-## Running with Docker (recommended)
+## Запуск через Docker (рекомендуется)
 
 ```bash
-# 1. Copy env example and fill in secrets (JWT_SECRET at minimum)
+# 1. Скопировать пример окружения и заполнить секреты (минимум JWT_SECRET)
 cp .env.example .env
 
-# 2. Start all services
+# 2. Запустить все сервисы
 docker-compose up --build
 ```
 
-| Service | URL |
+| Сервис | URL |
 |---|---|
-| Frontend | http://localhost:5173 |
+| Фронтенд | http://localhost:5173 |
 | Backend API | http://localhost:3000 |
 | PostgreSQL | localhost:5432 |
 | Redis | localhost:6379 |
 
-## Local Development (without Docker)
+## Локальная разработка (без Docker)
 
-### 1. Start infrastructure
+### 1. Запуск инфраструктуры
 
 ```bash
-# PostgreSQL and Redis only
+# Только PostgreSQL и Redis
 docker-compose up postgres redis -d
 ```
 
-### 2. Backend
+### 2. Бэкенд
 
 ```bash
 cd backend
-cp .env.example .env        # fill DATABASE_URL, JWT_SECRET, REDIS_URL
+cp .env.example .env        # заполнить DATABASE_URL, JWT_SECRET, REDIS_URL
 npm install
-npx prisma migrate dev      # run migrations
-npm run dev                 # starts on :3000
+npx prisma migrate dev      # применить миграции
+npm run dev                 # запускается на :3000
 ```
 
-### 3. Frontend
+### 3. Фронтенд
 
 ```bash
 cd frontend
 npm install
-npm run dev                 # starts on :5173
+npm run dev                 # запускается на :5173
 ```
 
-## Environment Variables
+## Переменные окружения
 
-### Backend (`backend/.env`)
+### Бэкенд (`backend/.env`)
 
-| Variable | Default | Description |
+| Переменная | По умолчанию | Описание |
 |---|---|---|
-| `DATABASE_URL` | — | PostgreSQL connection string |
-| `JWT_SECRET` | — | Secret for signing JWT tokens |
-| `JWT_EXPIRES_IN` | `7d` | Token lifetime |
-| `REDIS_URL` | `redis://localhost:6379` | Redis connection URL |
-| `REDIS_HISTORY_TTL` | `60` | History cache TTL in seconds |
-| `CORS_ORIGIN` | `http://localhost:5173` | Allowed CORS origin |
-| `PORT` | `3000` | HTTP server port |
+| `DATABASE_URL` | — | Строка подключения к PostgreSQL |
+| `JWT_SECRET` | — | Секрет для подписи JWT-токенов |
+| `JWT_EXPIRES_IN` | `7d` | Время жизни токена |
+| `REDIS_URL` | `redis://localhost:6379` | URL подключения к Redis |
+| `REDIS_HISTORY_TTL` | `60` | TTL кэша истории в секундах |
+| `CORS_ORIGIN` | `http://localhost:5173` | Разрешённый CORS origin |
+| `PORT` | `3000` | Порт HTTP-сервера |
 
-### Frontend (`frontend/.env`)
+### Фронтенд (`frontend/.env`)
 
-| Variable | Default | Description |
+| Переменная | По умолчанию | Описание |
 |---|---|---|
-| `VITE_API_URL` | `http://localhost:3000` | Backend base URL |
+| `VITE_API_URL` | `http://localhost:3000` | Базовый URL бэкенда |
 
-## API Overview
+## Обзор API
 
-| Method | Path | Auth | Description |
+| Метод | Путь | Авторизация | Описание |
 |---|---|---|---|
-| POST | `/api/auth/register` | — | Register |
-| POST | `/api/auth/login` | — | Login, returns JWT |
-| POST | `/api/qr` | ✓ | Generate & save QR |
-| GET | `/api/qr` | ✓ | List user's QR codes |
-| GET | `/api/qr/:id` | ✓ | Get single QR |
-| DELETE | `/api/qr/:id` | ✓ | Delete QR |
-| GET | `/api/qr/:id/view` | — | Public QR page (increments view counter) |
+| POST | `/api/auth/register` | — | Регистрация |
+| POST | `/api/auth/login` | — | Вход, возвращает JWT |
+| POST | `/api/qr` | ✓ | Сгенерировать и сохранить QR |
+| GET | `/api/qr` | ✓ | Список QR-кодов пользователя |
+| GET | `/api/qr/:id` | ✓ | Получить QR по ID |
+| DELETE | `/api/qr/:id` | ✓ | Удалить QR |
+| GET | `/api/qr/:id/view` | — | Публичная страница QR (увеличивает счётчик просмотров) |
