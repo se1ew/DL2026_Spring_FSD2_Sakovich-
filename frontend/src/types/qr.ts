@@ -10,3 +10,9 @@ export type QrHistoryItem = {
   imageUrl: string
   createdAt: string
 }
+
+export type QrFormFields = Omit<QrHistoryItem, 'id' | 'createdAt' | 'imageUrl'>
+
+export type ErrorCorrectionLabels = Record<'L' | 'M' | 'Q' | 'H', string>
+
+export type QrFormErrors = Partial<Record<keyof QrFormFields, string>>

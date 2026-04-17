@@ -1,15 +1,10 @@
 import type { QrCode } from '@prisma/client'
 import { redis, buildHistoryCacheKey } from '../lib/redis'
 import { prisma } from '../lib/prisma'
+import type { QrRequest } from '../types/qr'
 
-export type CreateQrPayload = {
+export type CreateQrPayload = Omit<QrRequest, 'text' | 'precomposedImage'> & {
   data: string
-  color: string
-  background: string
-  size: number
-  format: string
-  errorCorrectionLevel?: string
-  margin?: number
   imageUrl: string
   userId: string
 }
