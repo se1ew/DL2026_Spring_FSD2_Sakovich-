@@ -41,4 +41,10 @@
 Заменил Promise.all на Promise.allSettled в live preview и пагинации.
 Добавил Cache-Control заголовки на бэкенде.
 Реализовал пагинацию истории QR-кодов.
+Добавил rate limiting через express-rate-limit на эндпоинты авторизации и создания QR.
+Реализовал refresh token: новая таблица в БД, эндпоинты /refresh и /logout, rotation токенов, интеграция во фронтенде.
+Добавил валидацию формы на фронтенде с отображением ошибок под полями до отправки.
+Написал unit-тесты: Vitest для constrainLogoPos и validateQrForm, Jest для Zod-схем и qrService (32 теста).
+Добавил Helmet.js (security headers) и Morgan (HTTP-логирование) на бэкенд.
+Настроил GitHub Actions CI: автозапуск тестов на push в main, develop, feature/*.
 Обновил README.
