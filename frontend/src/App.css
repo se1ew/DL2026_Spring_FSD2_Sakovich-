@@ -1198,8 +1198,9 @@
 .projects-header { margin-bottom: 24px; }
 .projects-header h2 { font-size: 22px; color: #b2dfdb; margin-bottom: 4px; }
 .projects-subtitle { color: #6a9e97; font-size: 14px; }
-.project-create-form { display: flex; gap: 10px; margin-bottom: 16px; }
-.project-create-form .lum-input { flex: 1; }
+.project-create-form { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; }
+.project-create-form .lum-input { flex: 1; width: auto; min-width: 0; }
+.project-create-form .btn-generate { width: auto; flex-shrink: 0; padding: 11px 24px; }
 .projects-list { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
 .project-card {
   background: #112420;
