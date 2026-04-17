@@ -334,18 +334,23 @@ function App() {
     }
 
     const generate = async () => {
-      try {
-        const [png, svg] = await Promise.all([
-          QRCode.toDataURL(form.text, options),
-          QRCode.toString(form.text, { ...options, type: 'svg' }),
-        ])
+      const [pngResult, svgResult] = await Promise.allSettled([
+        QRCode.toDataURL(form.text, options),
+        QRCode.toString(form.text, { ...options, type: 'svg' }),
+      ])
 
-        if (!cancelled) {
-          const fullPreview: Required<ClientPreview> = { png, svg }
-          setClientPreview(fullPreview)
-        }
-      } catch (error) {
-        console.error('Не удалось построить live preview', error)
+      if (pngResult.status === 'rejected') {
+        console.error('PNG preview failed', pngResult.reason)
+      }
+      if (svgResult.status === 'rejected') {
+        console.error('SVG preview failed', svgResult.reason)
+      }
+
+      if (!cancelled) {
+        setClientPreview({
+          png: pngResult.status === 'fulfilled' ? pngResult.value : undefined,
+          svg: svgResult.status === 'fulfilled' ? svgResult.value : undefined,
+        })
       }
     }
 
