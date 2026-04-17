@@ -19,7 +19,9 @@ docker compose up --build
 |---|---|---|
 | ![Генератор](docs/screenshots/generator.png) | ![История](docs/screenshots/history.png) | ![Проекты](docs/screenshots/projects.png) |
 
-> Скриншоты ещё не добавлены? Запусти приложение и положи файлы в `docs/screenshots/`.
+| Динамический QR | vCard режим | Модальное окно проекта |
+|---|---|---|
+| ![Dynamic](docs/screenshots/dynamic.png) | ![vCard](docs/screenshots/vcard.png) | ![Modal](docs/screenshots/project-modal.png) |
 
 ---
 
@@ -57,20 +59,6 @@ docker compose up --build
 | **Качество кода** | ESLint, Prettier, Vitest, Jest |
 | **Безопасность** | Helmet.js, express-rate-limit |
 | **Логирование** | Morgan |
-
-## 🤔 Почему такой стек?
-
-**Почему React Konva, а не SVG?**  
-Функция наложения логотипа требует перетаскиваемого и масштабируемого элемента поверх canvas с QR-кодом. Konva предоставляет готовые трансформеры (drag + resize). Альтернатива — чистый SVG + pointer events — потребовала бы ~200 строк ручной математики хитбоксов. Konva решает это в 20 строках.
-
-**Почему Redis для счётчиков просмотров, а не PostgreSQL?**  
-Счётчик инкрементируется при каждом сканировании публичной ссылки (`INCR qr:views:{id}`). Атомарный Redis `INCR` занимает ~0.1 мс без блокировок, тогда как `UPDATE ... SET views = views + 1` в PostgreSQL требует блокировки строки. При нагрузке это создаёт lock contention на горячих строках.
-
-**Почему `Promise.allSettled` в пагинации?**  
-`COUNT(*)` и `findMany` — независимые запросы. Если запрос count завершится с ошибкой (например, по таймауту), `allSettled` всё равно вернёт элементы — пагинация деградирует gracefully вместо 500.
-
-**Почему offset-пагинация, а не cursor?**  
-У каждого пользователя мало QR-кодов (обычно < 1000), и навигация всегда начинается со страницы 1. Offset-пагинация проще и оправдана на данном масштабе. Cursor-based потребовался бы при 100k+ записей на пользователя.
 
 ## ✨ Возможности
 
