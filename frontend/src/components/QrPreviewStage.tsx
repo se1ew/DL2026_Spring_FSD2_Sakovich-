@@ -4,6 +4,38 @@ import type Konva from 'konva'
 
 export const STAGE_SIZE = 320
 
+const CORNER_ZONE = Math.round(STAGE_SIZE * 0.26)
+
+const constrainLogoPos = (x: number, y: number, w: number, h: number) => {
+  const S = STAGE_SIZE
+  const C = CORNER_ZONE
+
+  let nx = Math.max(0, Math.min(x, S - w))
+  let ny = Math.max(0, Math.min(y, S - h))
+
+  const forbidden = [
+    { x1: 0,   y1: 0,   x2: C,   y2: C   },
+    { x1: S-C, y1: 0,   x2: S,   y2: C   },
+    { x1: 0,   y1: S-C, x2: C,   y2: S   },
+  ]
+
+  for (const z of forbidden) {
+    if (nx < z.x2 && nx + w > z.x1 && ny < z.y2 && ny + h > z.y1) {
+      const pushRight = z.x2 - nx
+      const pushDown  = z.y2 - ny
+      const pushLeft  = (nx + w) - z.x1
+      const pushUp    = (ny + h) - z.y1
+      const min = Math.min(pushRight, pushDown, pushLeft, pushUp)
+      if      (min === pushRight) nx = z.x2
+      else if (min === pushDown)  ny = z.y2
+      else if (min === pushLeft)  nx = z.x1 - w
+      else                        ny = z.y1 - h
+    }
+  }
+
+  return { x: nx, y: ny }
+}
+
 export type QrPreviewStageHandle = {
   toDataURL: (scale?: number) => string | null
 }
@@ -105,10 +137,13 @@ export const QrPreviewStage = forwardRef<QrPreviewStageHandle, Props>(
                 width={logoSize.width}
                 height={logoSize.height}
                 draggable
+                dragBoundFunc={(pos) => constrainLogoPos(pos.x, pos.y, logoSize.width, logoSize.height)}
                 onMouseDown={() => setSelected(true)}
                 onTap={() => setSelected(true)}
                 onDragEnd={(e) => {
-                  setLogoPos({ x: e.target.x(), y: e.target.y() })
+                  const p = constrainLogoPos(e.target.x(), e.target.y(), logoSize.width, logoSize.height)
+                  e.target.position(p)
+                  setLogoPos(p)
                 }}
                 onTransformEnd={() => {
                   const node = logoNodeRef.current!
@@ -116,7 +151,9 @@ export const QrPreviewStage = forwardRef<QrPreviewStageHandle, Props>(
                   const newH = Math.max(20, node.height() * node.scaleY())
                   node.scaleX(1)
                   node.scaleY(1)
-                  setLogoPos({ x: node.x(), y: node.y() })
+                  const p = constrainLogoPos(node.x(), node.y(), newW, newH)
+                  node.position(p)
+                  setLogoPos(p)
                   setLogoSize({ width: newW, height: newH })
                 }}
               />
