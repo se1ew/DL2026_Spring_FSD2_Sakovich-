@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import App from './App'
 import { HistoryPage } from './pages/HistoryPage'
+import { ProjectsPage } from './pages/ProjectsPage'
 import { useAuth } from './hooks/useAuth'
 import { AuthScreen } from './components/AuthScreen'
 
-export type Route = 'generator' | 'history'
+export type Route = 'generator' | 'history' | 'projects'
 
 export const AppRoot = () => {
   const { user, logout, isBootstrapping } = useAuth()
@@ -44,6 +45,13 @@ export const AppRoot = () => {
           >
             History
           </button>
+          <button
+            type="button"
+            className={`nav-btn${route === 'projects' ? ' active' : ''}`}
+            onClick={() => setRoute('projects')}
+          >
+            Projects
+          </button>
           <button type="button" className="nav-btn nav-btn-logout" onClick={logout}>
             Logout
           </button>
@@ -51,9 +59,9 @@ export const AppRoot = () => {
       </header>
 
       <main className="shell-body">
-        {route === 'generator'
-          ? <App />
-          : <HistoryPage onBack={() => setRoute('generator')} />}
+        {route === 'generator' && <App />}
+        {route === 'history' && <HistoryPage onBack={() => setRoute('generator')} />}
+        {route === 'projects' && <ProjectsPage />}
       </main>
     </div>
   )

@@ -32,6 +32,9 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   const [error, setError] = useState<string | null>(null)
   const [dlMenuId, setDlMenuId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [editDynamicId, setEditDynamicId] = useState<string | null>(null)
+  const [editDynamicUrl, setEditDynamicUrl] = useState('')
+  const [savingDynamic, setSavingDynamic] = useState(false)
   const dlMenuRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
@@ -108,6 +111,30 @@ export const HistoryPage = (_props: HistoryPageProps) => {
     window.open(`${API_BASE_URL}/api/qr/${item.id}/view`, '_blank', 'noopener')
   }
 
+  const handleEditDynamic = (item: QrHistoryItem) => {
+    setEditDynamicId(item.id)
+    setEditDynamicUrl(item.dynamicUrl ?? '')
+  }
+
+  const handleSaveDynamic = async (item: QrHistoryItem) => {
+    if (!token) return
+    setSavingDynamic(true)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/qr/${item.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ dynamicUrl: editDynamicUrl }),
+      })
+      if (res.ok) {
+        const updated = await res.json() as QrHistoryItem
+        setItems(prev => prev.map(i => i.id === updated.id ? { ...i, dynamicUrl: updated.dynamicUrl } : i))
+        setEditDynamicId(null)
+      }
+    } finally {
+      setSavingDynamic(false)
+    }
+  }
+
   const handleDelete = async (item: QrHistoryItem) => {
     if (!token) return
     try {
@@ -167,9 +194,33 @@ export const HistoryPage = (_props: HistoryPageProps) => {
                   : <div className="hist-thumb-empty" />}
               </div>
               <div className="hist-card-info">
+                <div className="hist-card-badges">
+                  {item.dynamicUrl && <span className="badge badge-dynamic">Dynamic</span>}
+                  {item.projectId && <span className="badge badge-project">Project</span>}
+                </div>
                 <p className="hist-card-id">QR {item.id.slice(0, 8)}</p>
                 <p className="hist-card-date">{formatDate(item.createdAt)}</p>
                 <p className="hist-card-url">{item.data}</p>
+                {item.dynamicUrl && editDynamicId !== item.id && (
+                  <p className="hist-card-dynamic-url" title={item.dynamicUrl}>
+                    → {item.dynamicUrl.length > 40 ? item.dynamicUrl.slice(0, 40) + '…' : item.dynamicUrl}
+                  </p>
+                )}
+                {editDynamicId === item.id && (
+                  <div className="dynamic-edit-row">
+                    <input
+                      className="lum-input"
+                      type="url"
+                      value={editDynamicUrl}
+                      onChange={e => setEditDynamicUrl(e.target.value)}
+                      placeholder="New target URL"
+                    />
+                    <button type="button" className="hist-btn" disabled={savingDynamic} onClick={() => handleSaveDynamic(item)}>
+                      {savingDynamic ? 'Saving…' : 'Save'}
+                    </button>
+                    <button type="button" className="hist-btn" onClick={() => setEditDynamicId(null)}>Cancel</button>
+                  </div>
+                )}
                 <div className="hist-card-btns">
                   <div style={{ position: 'relative' }} ref={dlMenuId === item.id ? dlMenuRef : undefined}>
                     <button
@@ -190,6 +241,11 @@ export const HistoryPage = (_props: HistoryPageProps) => {
                     {copiedId === item.id ? 'Copied!' : 'Copy link'}
                   </button>
                   <button type="button" className="hist-btn" onClick={() => handleOpen(item)}>Open</button>
+                  {item.dynamicUrl && editDynamicId !== item.id && (
+                    <button type="button" className="hist-btn hist-btn-dynamic" onClick={() => handleEditDynamic(item)}>
+                      Edit target
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

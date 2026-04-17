@@ -6,6 +6,8 @@ import morgan from 'morgan'
 import helmet from 'helmet'
 import { router as authRouter } from './routes/auth'
 import { router as qrRouter } from './routes/qr'
+import { router as projectsRouter } from './routes/projects'
+import { redirectDynamic } from './controllers/qrController'
 import { errorHandler } from './middleware/errorHandler'
 import { initRealtime } from './lib/realtime'
 import { noStore } from './middleware/cache'
@@ -27,6 +29,8 @@ app.get('/health', noStore, (_req, res) => {
 
 app.use('/api/auth', authRouter)
 app.use('/api/qr', qrRouter)
+app.use('/api/projects', projectsRouter)
+app.get('/r/:id', redirectDynamic)
 
 app.use(errorHandler)
 
