@@ -30,6 +30,7 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   const [dlMenuId, setDlMenuId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const dlMenuRef = useRef<HTMLDivElement>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     if (!dlMenuId) return
@@ -43,24 +44,33 @@ export const HistoryPage = (_props: HistoryPageProps) => {
   }, [dlMenuId])
 
   const loadHistory = useCallback(async () => {
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     setLoading(true)
     setError(null)
     try {
       if (!token) throw new Error('Session expired')
       const res = await fetch(`${API_BASE_URL}/api/qr`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       })
       const payload = await res.json()
       if (!res.ok) throw new Error(payload.error || 'Failed to load history')
       setItems(payload.items ?? [])
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return
       setError(err instanceof Error ? err.message : 'Failed to load history')
     } finally {
-      setLoading(false)
+      if (!controller.signal.aborted) setLoading(false)
     }
   }, [token])
 
-  useEffect(() => { loadHistory() }, [loadHistory])
+  useEffect(() => {
+    loadHistory()
+    return () => abortRef.current?.abort()
+  }, [loadHistory])
 
   useEffect(() => {
     const handler = (event: Event) => {
