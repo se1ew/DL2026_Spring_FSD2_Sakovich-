@@ -1,39 +1,84 @@
-# Генератор QR-кодов
+# QR Code Generator
 
-Full-stack веб-приложение для генерации, настройки и управления QR-кодами.
+Full-stack монорепозиторий для генерации, настройки и управления QR-кодами.
 
-## Стек технологий
+## Стек
 
-| Слой | Технология |
+| Слой | Технологии |
 |---|---|
-| Фронтенд | React 18, TypeScript, Vite, React Konva, react-colorful |
-| Бэкенд | Node.js, Express, TypeScript, Socket.IO |
-| База данных | PostgreSQL 16 + Prisma ORM |
-| Кэш | Redis 7 |
-| Авторизация | JWT (Bearer token) |
-| Инфраструктура | Docker, docker-compose |
+| **Фронтенд** | React 18, TypeScript, Vite, React Konva, react-colorful |
+| **Бэкенд** | Node.js 20, Express 5, TypeScript, Zod |
+| **База данных** | PostgreSQL 16 + Prisma ORM |
+| **Кэш** | Redis 7 (ioredis) |
+| **Реалтайм** | Socket.IO (WebSocket) |
+| **Авторизация** | JWT (Bearer token) |
+| **Инфраструктура** | Docker, docker-compose |
+| **Качество кода** | ESLint, Prettier |
 
 ## Возможности
 
-- Генерация QR-кодов (PNG / SVG) с настройкой цвета, уровня коррекции ошибок, отступов и размера
-- Загрузка логотипа и его размещение на QR через drag-and-drop; логотип автоматически не даёт перекрыть угловые маркеры
-- Интерактивный превью на React Konva с перетаскиванием и ресайзом логотипа
-- История сгенерированных QR-кодов: скачивание (PNG или SVG), копирование публичной ссылки, удаление
+### QR-генератор
+- Генерация QR-кодов в форматах **PNG** и **SVG** — параллельно через `Promise.allSettled` (провал одного формата не блокирует другой)
+- Настройка цвета, фона, уровня коррекции ошибок (L / M / Q / H), отступов и размера
+- Live preview обновляется при каждом изменении параметров
+
+### Логотип
+- Загрузка логотипа через drag-and-drop или выбор файла
+- Размещение логотипа поверх QR с перетаскиванием и ресайзом (React Konva)
+- Автоматическое ограничение позиции — логотип не может перекрыть угловые маркеры (finder patterns)
+
+### История
+- Пагинированная история QR-кодов (6 на страницу, кнопки ← Prev / Next →)
+- Скачивание (PNG или SVG), копирование публичной ссылки, удаление
+
+### Реалтайм & публичный доступ
 - Публичная ссылка на каждый QR (`/api/qr/:id/view`) — без авторизации
-- Счётчик просмотров в Redis; владелец получает уведомление в реальном времени через WebSocket при открытии ссылки
+- Счётчик просмотров в Redis; владелец получает WebSocket-уведомление при каждом открытии
 
-## Требования
+## Архитектурные решения
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (включает docker-compose)
-- Node.js 20+ (для локальной разработки без Docker)
+| Паттерн | Где применяется |
+|---|---|
+| `AbortController` | Отмена in-flight запросов при размонтировании компонента или повторном вызове |
+| `Promise.allSettled` | Параллельная генерация PNG + SVG в live preview; параллельный `count` + `findMany` в пагинации |
+| `Cache-Control: no-store` | Все приватные и мутирующие эндпоинты (`/api/qr`, `/api/auth`, `/health`) |
+| `Cache-Control: public, max-age=60` | Публичная страница просмотра QR (`/api/qr/:id/view`) |
+| Redis per-page cache | История кэшируется отдельно на каждую комбинацию `page × limit`; инвалидация по паттерну `qr:history:{uid}:*` |
+| TS Utility types | `Omit`, `Pick`, `Partial<Record<...>>`, `Required`, `Awaited<ReturnType<...>>`, `Record` |
+| Git Flow | `main` ← `develop` ← `feature/*`; все фичи через `--no-ff` merge |
 
-## Запуск через Docker (рекомендуется)
+## Структура проекта
+
+```
+.
+├── backend/          # Express API
+│   ├── prisma/       # Схема и миграции
+│   └── src/
+│       ├── controllers/
+│       ├── middleware/   # auth, validate, cache
+│       ├── lib/          # prisma, redis, realtime (Socket.IO)
+│       ├── routes/
+│       ├── services/
+│       └── types/
+├── frontend/         # React SPA
+│   └── src/
+│       ├── components/   # QrPreviewStage, ColorPicker, AuthScreen
+│       ├── constants/
+│       ├── hooks/
+│       ├── pages/        # HistoryPage
+│       └── types/
+└── docker-compose.yml
+```
+
+## Запуск
+
+### Docker (рекомендуется)
 
 ```bash
-# 1. Скопировать пример окружения и заполнить секреты (минимум JWT_SECRET)
-cp .env.example .env
+# 1. Скопировать и заполнить переменные (минимум JWT_SECRET и DATABASE_URL)
+cp backend/.env.example backend/.env
 
-# 2. Запустить все сервисы
+# 2. Поднять все сервисы
 docker-compose up --build
 ```
 
@@ -44,61 +89,55 @@ docker-compose up --build
 | PostgreSQL | localhost:5432 |
 | Redis | localhost:6379 |
 
-## Локальная разработка (без Docker)
-
-### 1. Запуск инфраструктуры
+### Локальная разработка
 
 ```bash
-# Только PostgreSQL и Redis
+# Только инфраструктура
 docker-compose up postgres redis -d
-```
 
-### 2. Бэкенд
-
-```bash
+# Бэкенд
 cd backend
-cp .env.example .env        # заполнить DATABASE_URL, JWT_SECRET, REDIS_URL
+cp .env.example .env
 npm install
-npx prisma migrate dev      # применить миграции
-npm run dev                 # запускается на :3000
-```
+npx prisma migrate dev
+npm run dev              # :3000
 
-### 3. Фронтенд
-
-```bash
+# Фронтенд (отдельный терминал)
 cd frontend
 npm install
-npm run dev                 # запускается на :5173
+npm run dev              # :5173
 ```
 
 ## Переменные окружения
 
-### Бэкенд (`backend/.env`)
+### `backend/.env`
 
 | Переменная | По умолчанию | Описание |
 |---|---|---|
 | `DATABASE_URL` | — | Строка подключения к PostgreSQL |
-| `JWT_SECRET` | — | Секрет для подписи JWT-токенов |
+| `JWT_SECRET` | — | Секрет для подписи JWT |
 | `JWT_EXPIRES_IN` | `7d` | Время жизни токена |
-| `REDIS_URL` | `redis://localhost:6379` | URL подключения к Redis |
-| `REDIS_HISTORY_TTL` | `60` | TTL кэша истории в секундах |
+| `REDIS_URL` | `redis://localhost:6379` | URL Redis |
+| `REDIS_HISTORY_TTL` | `60` | TTL кэша истории (сек) |
 | `CORS_ORIGIN` | `http://localhost:5173` | Разрешённый CORS origin |
 | `PORT` | `3000` | Порт HTTP-сервера |
 
-### Фронтенд (`frontend/.env`)
+### `frontend/.env`
 
 | Переменная | По умолчанию | Описание |
 |---|---|---|
 | `VITE_API_URL` | `http://localhost:3000` | Базовый URL бэкенда |
 
-## Обзор API
+## API
 
-| Метод | Путь | Авторизация | Описание |
+| Метод | Путь | Auth | Описание |
 |---|---|---|---|
-| POST | `/api/auth/register` | — | Регистрация |
-| POST | `/api/auth/login` | — | Вход, возвращает JWT |
-| POST | `/api/qr` | ✓ | Сгенерировать и сохранить QR |
-| GET | `/api/qr` | ✓ | Список QR-кодов пользователя |
-| GET | `/api/qr/:id` | ✓ | Получить QR по ID |
-| DELETE | `/api/qr/:id` | ✓ | Удалить QR |
-| GET | `/api/qr/:id/view` | — | Публичная страница QR (увеличивает счётчик просмотров) |
+| `POST` | `/api/auth/register` | — | Регистрация |
+| `POST` | `/api/auth/login` | — | Вход, возвращает JWT |
+| `GET` | `/api/auth/me` | ✓ | Проверка токена |
+| `POST` | `/api/qr` | ✓ | Создать QR-код |
+| `GET` | `/api/qr?page=1&limit=6` | ✓ | Пагинированный список |
+| `GET` | `/api/qr/:id` | ✓ | Получить QR по ID |
+| `DELETE` | `/api/qr/:id` | ✓ | Удалить QR |
+| `GET` | `/api/qr/:id/view` | — | Публичный просмотр (счётчик++) |
+| `GET` | `/health` | — | Healthcheck |
