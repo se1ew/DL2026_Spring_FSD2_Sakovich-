@@ -1,8 +1,11 @@
 import { Request, Response, NextFunction } from 'express'
 import QRCode from 'qrcode'
+import crypto from 'crypto'
 import { qrService } from '../services/qrService'
 import { emitQrCreated, emitQrViewed } from '../lib/realtime'
-import { QrRequest } from '../types/qr'
+import { QrRequest, PatchQrRequest } from '../types/qr'
+
+const getAppUrl = () => process.env.APP_URL ?? `http://localhost:${process.env.PORT ?? 3000}`
 
 type QrCreateResponse = {
   qr: Awaited<ReturnType<typeof qrService.create>>
@@ -50,18 +53,23 @@ export const createQr = async (
     const { text, format, precomposedImage } = req.body
     const options = buildQrOptions(req.body)
 
+    const isDynamic = req.body.dynamic === true && !!req.body.dynamicUrl
+    const qrId = isDynamic ? crypto.randomUUID() : undefined
+    const qrContent = isDynamic ? `${getAppUrl()}/r/${qrId}` : text
+
     let imageData: string
     let mimeType: string
 
     if (format === 'svg') {
-      imageData = await QRCode.toString(text, { ...options, type: 'svg' })
+      imageData = await QRCode.toString(qrContent, { ...options, type: 'svg' })
       mimeType = 'image/svg+xml'
     } else {
-      imageData = precomposedImage ?? await QRCode.toDataURL(text, options)
+      imageData = (isDynamic ? undefined : precomposedImage) ?? await QRCode.toDataURL(qrContent, options)
       mimeType = 'image/png'
     }
 
     const qr = await qrService.create({
+      ...(qrId ? { id: qrId } : {}),
       data: text,
       color: req.body.color,
       background: req.body.background,
@@ -71,6 +79,8 @@ export const createQr = async (
       margin: req.body.margin,
       imageUrl: imageData,
       userId,
+      dynamicUrl: isDynamic ? req.body.dynamicUrl : undefined,
+      projectId: req.body.projectId,
     })
 
     const body: QrCreateResponse = { qr, image: imageData, mimeType }
@@ -147,6 +157,33 @@ export const deleteQr = async (
   } catch (err) {
     next(err)
   }
+}
+
+export const patchQr = async (
+  req: Request<{ id: string }, unknown, PatchQrRequest>,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const userId = req.user?.userId
+    if (!userId) { res.status(401).json({ error: 'Не авторизован' }); return }
+    const updated = await qrService.updateById(req.params.id, userId, req.body)
+    if (!updated) { res.status(404).json({ error: 'QR code not found' }); return }
+    void qrService.list(userId)
+    res.json(updated)
+  } catch (err) { next(err) }
+}
+
+export const redirectDynamic = async (
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const qr = await qrService.getByIdPublic(req.params.id)
+    if (!qr || !qr.dynamicUrl) { res.status(404).send('Not found'); return }
+    res.redirect(302, qr.dynamicUrl)
+  } catch (err) { next(err) }
 }
 
 export const viewQrPublic = async (
