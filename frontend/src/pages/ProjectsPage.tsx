@@ -8,7 +8,7 @@ type Props = Record<string, never>
 
 export const ProjectsPage = (_props: Props) => {
   const { token } = useAuth()
-  const { projects, loading, create, remove } = useProjects(token)
+  const { projects, loading, create, remove, reload } = useProjects(token)
   const [activeProject, setActiveProject] = useState<Project | null>(null)
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
@@ -97,6 +97,7 @@ export const ProjectsPage = (_props: Props) => {
         project={activeProject}
         token={token}
         onClose={() => setActiveProject(null)}
+        onProjectsChange={reload}
       />
     )}
     </>
