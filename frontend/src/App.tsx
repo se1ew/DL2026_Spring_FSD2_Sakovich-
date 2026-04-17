@@ -82,6 +82,7 @@ function App() {
   const socketRef = useRef<Socket | null>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const stageRef = useRef<QrPreviewStageHandle>(null)
+  const submitAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     if (!token) {
@@ -124,6 +125,10 @@ function App() {
       socketRef.current = null
     }
   }, [token])
+
+  useEffect(() => {
+    return () => submitAbortRef.current?.abort()
+  }, [])
 
   const handleInputChange =
     <K extends keyof FormState>(
@@ -175,12 +180,17 @@ function App() {
       return
     }
 
+    submitAbortRef.current?.abort()
+    const controller = new AbortController()
+    submitAbortRef.current = controller
+
     setIsSubmitting(true)
     setFormError(null)
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/qr`, {
         method: 'POST',
+        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
@@ -208,9 +218,10 @@ function App() {
       setPreview(nextPreview)
       setForm((prev) => ({ ...prev, text: '' }))
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return
       setFormError(error instanceof Error ? error.message : 'Произошла ошибка')
     } finally {
-      setIsSubmitting(false)
+      if (!controller.signal.aborted) setIsSubmitting(false)
     }
   }
 
