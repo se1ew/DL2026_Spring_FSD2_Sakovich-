@@ -141,7 +141,12 @@ export const QrPreviewStage = forwardRef<QrPreviewStageHandle, Props>(
                 width={logoSize.width}
                 height={logoSize.height}
                 draggable
-                dragBoundFunc={(pos) => constrainLogoPos(pos.x, pos.y, logoSize.width, logoSize.height)}
+                onDragMove={(e) => {
+                  const node = e.target
+                  const p = constrainLogoPos(node.x(), node.y(), logoSize.width, logoSize.height)
+                  node.x(p.x)
+                  node.y(p.y)
+                }}
                 onMouseDown={() => setSelected(true)}
                 onTap={() => setSelected(true)}
                 onDragEnd={(e) => {
