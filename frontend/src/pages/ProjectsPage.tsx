@@ -4,7 +4,7 @@ import { useProjects } from '../hooks/useProjects'
 import { type Project } from '../types/qr'
 
 type Props = {
-  onSelectProject?: (project: Project | null) => void
+  onSelectProject?: (project: Project) => void
 }
 
 export const ProjectsPage = ({ onSelectProject }: Props) => {
