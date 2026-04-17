@@ -19,9 +19,9 @@ docker compose up --build
 |---|---|---|
 | ![Генератор](docs/screenshots/generator.png) | ![История](docs/screenshots/history.png) | ![Проекты](docs/screenshots/projects.png) |
 
-| Динамический QR | vCard режим | Модальное окно проекта |
-|---|---|---|
-| ![Dynamic](docs/screenshots/dynamic.png) | ![vCard](docs/screenshots/vcard.png) | ![Modal](docs/screenshots/project-modal.png) |
+| vCard режим | Модальное окно проекта |
+|---|---|
+| ![vCard](docs/screenshots/vcard.png) | ![Modal](docs/screenshots/project-modal.png) |
 
 ---
 
