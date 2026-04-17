@@ -417,6 +417,9 @@
 /* ─── History page ──────────────────────────────────────────────── */
 .hist-page {
   width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .hist-header {
@@ -1187,6 +1190,10 @@
   padding: 32px 36px 60px;
   max-width: 720px;
   margin: 0 auto;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  width: 100%;
 }
 .projects-header { margin-bottom: 24px; }
 .projects-header h2 { font-size: 22px; color: #b2dfdb; margin-bottom: 4px; }
