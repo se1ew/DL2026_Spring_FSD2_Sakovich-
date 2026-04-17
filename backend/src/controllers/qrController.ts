@@ -4,6 +4,17 @@ import { qrService } from '../services/qrService'
 import { emitQrCreated, emitQrViewed } from '../lib/realtime'
 import { QrRequest } from '../types/qr'
 
+type QrCreateResponse = {
+  qr: Awaited<ReturnType<typeof qrService.create>>
+  image: string
+  mimeType: string
+}
+
+type QrPublicView = Pick<
+  NonNullable<Awaited<ReturnType<typeof qrService.getByIdPublic>>>,
+  'id' | 'data' | 'imageUrl' | 'userId'
+>
+
 const buildQrOptions = (body: QrRequest): QRCode.QRCodeToDataURLOptions => {
   return {
     width: body.size,
@@ -54,11 +65,8 @@ export const createQr = async (
       userId,
     })
 
-    res.status(201).json({
-      qr,
-      image: imageData,
-      mimeType,
-    })
+    const body: QrCreateResponse = { qr, image: imageData, mimeType }
+    res.status(201).json(body)
 
     emitQrCreated(userId, qr)
   } catch (err) {
@@ -142,12 +150,13 @@ export const viewQrPublic = async (
       return
     }
 
-    const viewCount = await qrService.incrementViews(qr.id)
-    emitQrViewed(qr.userId, { qrId: qr.id, viewCount })
+    const { id, data, imageUrl, userId }: QrPublicView = qr
+    const viewCount = await qrService.incrementViews(id)
+    emitQrViewed(userId, { qrId: id, viewCount })
 
-    const imgTag = qr.imageUrl.startsWith('data:')
-      ? `<img src="${qr.imageUrl}" style="max-width:480px;border-radius:12px;" />`
-      : `<pre style="color:#dff4ee;font-size:11px;overflow:auto;max-width:480px">${qr.imageUrl}</pre>`
+    const imgTag = imageUrl.startsWith('data:')
+      ? `<img src="${imageUrl}" style="max-width:480px;border-radius:12px;" />`
+      : `<pre style="color:#dff4ee;font-size:11px;overflow:auto;max-width:480px">${imageUrl}</pre>`
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8')
     res.send(`<!DOCTYPE html>
@@ -166,7 +175,7 @@ a{color:#00d4aa;text-decoration:none}
 </head>
 <body>
 ${imgTag}
-<p>Content: <a href="${qr.data}" target="_blank" rel="noopener">${qr.data}</a></p>
+<p>Content: <a href="${data}" target="_blank" rel="noopener">${data}</a></p>
 <p>Views: ${viewCount}</p>
 </body>
 </html>`)

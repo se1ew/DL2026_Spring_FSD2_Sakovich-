@@ -10,7 +10,7 @@ import * as QRCode from 'qrcode'
 import { io, type Socket } from 'socket.io-client'
 import './App.css'
 import { HISTORY_UPDATED_EVENT, QR_CREATED_EVENT, REUSE_EVENT_NAME } from './constants/events'
-import { type QrHistoryItem } from './types/qr'
+import { type QrHistoryItem, type QrFormFields, type ErrorCorrectionLabels } from './types/qr'
 import { useAuth } from './hooks/useAuth'
 import { QrPreviewStage, STAGE_SIZE, type QrPreviewStageHandle } from './components/QrPreviewStage'
 import { ColorPicker } from './components/ColorPicker'
@@ -27,6 +27,13 @@ type PreviewState = {
 type ClientPreview = {
   png?: string
   svg?: string
+}
+
+const ERROR_CORRECTION_LABELS: ErrorCorrectionLabels = {
+  L: 'L — 7%',
+  M: 'M — 15%',
+  Q: 'Q — 25%',
+  H: 'H — 30%',
 }
 
 type QrFormat = 'png' | 'svg'
@@ -218,16 +225,26 @@ function App() {
       qr: item,
     })
 
-    setForm((prev) => ({
-      ...prev,
-      text: item.data,
-      format: normalizeHistoryFormat(item.format),
-      size: item.size,
+    const fields: QrFormFields = {
+      data: item.data,
       color: item.color,
       background: item.background,
+      size: item.size,
+      format: item.format,
+      errorCorrectionLevel: item.errorCorrectionLevel,
+      margin: item.margin,
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      text: fields.data,
+      format: normalizeHistoryFormat(fields.format),
+      size: fields.size,
+      color: fields.color,
+      background: fields.background,
       errorCorrectionLevel:
-        (item.errorCorrectionLevel as 'L' | 'M' | 'Q' | 'H') ?? prev.errorCorrectionLevel,
-      margin: item.margin ?? prev.margin,
+        (fields.errorCorrectionLevel as 'L' | 'M' | 'Q' | 'H') ?? prev.errorCorrectionLevel,
+      margin: fields.margin ?? prev.margin,
     }))
   }, [])
 
@@ -313,7 +330,8 @@ function App() {
         ])
 
         if (!cancelled) {
-          setClientPreview({ png, svg })
+          const fullPreview: Required<ClientPreview> = { png, svg }
+          setClientPreview(fullPreview)
         }
       } catch (error) {
         console.error('Не удалось построить live preview', error)
@@ -393,10 +411,9 @@ function App() {
                 value={form.errorCorrectionLevel}
                 onChange={handleInputChange('errorCorrectionLevel', (v) => v as FormState['errorCorrectionLevel'])}
               >
-                <option value="L">L — 7%</option>
-                <option value="M">M — 15%</option>
-                <option value="Q">Q — 25%</option>
-                <option value="H">H — 30%</option>
+                {(['L', 'M', 'Q', 'H'] as const).map((level) => (
+                  <option key={level} value={level}>{ERROR_CORRECTION_LABELS[level]}</option>
+                ))}
               </select>
             </div>
             <div className="color-field">
