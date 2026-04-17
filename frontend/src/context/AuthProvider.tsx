@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { API_BASE_URL, TOKEN_STORAGE_KEY, USER_STORAGE_KEY } from '../config'
+import { API_BASE_URL, TOKEN_STORAGE_KEY, REFRESH_TOKEN_STORAGE_KEY, USER_STORAGE_KEY } from '../config'
 import { AuthContext, type AuthContextValue, type AuthUser } from './AuthContext'
 
 type AuthCredentials = {
@@ -20,23 +20,40 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [token, setToken] = useState<string | null>(() =>
     typeof window !== 'undefined' ? window.localStorage.getItem(TOKEN_STORAGE_KEY) : null,
   )
+  const [refreshToken, setRefreshToken] = useState<string | null>(() =>
+    typeof window !== 'undefined' ? window.localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY) : null,
+  )
   const [isBootstrapping, setIsBootstrapping] = useState(true)
 
-  const clearSession = useCallback(() => {
+  const clearSession = useCallback((rt?: string | null) => {
+    const tokenToRevoke = rt ?? (typeof window !== 'undefined' ? window.localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY) : null)
+    if (tokenToRevoke) {
+      fetch(`${API_BASE_URL}/api/auth/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: tokenToRevoke }),
+      }).catch(() => {})
+    }
     setUser(null)
     setToken(null)
+    setRefreshToken(null)
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(TOKEN_STORAGE_KEY)
+      window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY)
       window.localStorage.removeItem(USER_STORAGE_KEY)
     }
   }, [])
 
-  const persistSession = useCallback((nextToken: string, nextUser: AuthUser) => {
+  const persistSession = useCallback((nextToken: string, nextUser: AuthUser, nextRefreshToken?: string) => {
     setToken(nextToken)
     setUser(nextUser)
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(TOKEN_STORAGE_KEY, nextToken)
       window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(nextUser))
+      if (nextRefreshToken) {
+        setRefreshToken(nextRefreshToken)
+        window.localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, nextRefreshToken)
+      }
     }
   }, [])
 
@@ -54,6 +71,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const payload = await response.json()
 
         if (!response.ok) {
+          const rt = typeof window !== 'undefined' ? window.localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY) : null
+          if (rt) {
+            const refreshRes = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ refreshToken: rt }),
+            })
+            const refreshPayload = await refreshRes.json()
+            if (refreshRes.ok) {
+              persistSession(refreshPayload.token, refreshPayload.user, refreshPayload.refreshToken)
+              return
+            }
+          }
           throw new Error(payload.error || 'Сессия недействительна')
         }
 
@@ -82,7 +112,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         throw new Error(payload.error || 'Не удалось выполнить действие')
       }
 
-      persistSession(payload.token, payload.user)
+      persistSession(payload.token, payload.user, payload.refreshToken)
     },
     [persistSession],
   )
@@ -97,12 +127,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     () => ({
       user,
       token,
+      refreshToken,
       isBootstrapping,
       login,
       register,
-      logout: clearSession,
+      logout: () => clearSession(),
     }),
-    [user, token, isBootstrapping, login, register, clearSession],
+    [user, token, refreshToken, isBootstrapping, login, register, clearSession],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

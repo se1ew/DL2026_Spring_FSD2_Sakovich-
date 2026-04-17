@@ -10,7 +10,8 @@ import * as QRCode from 'qrcode'
 import { io, type Socket } from 'socket.io-client'
 import './App.css'
 import { HISTORY_UPDATED_EVENT, QR_CREATED_EVENT, REUSE_EVENT_NAME } from './constants/events'
-import { type QrHistoryItem, type QrFormFields, type ErrorCorrectionLabels } from './types/qr'
+import { type QrHistoryItem, type QrFormFields, type ErrorCorrectionLabels, type QrFormErrors } from './types/qr'
+import { validateQrForm, isFormValid } from './utils/validateQrForm'
 import { useAuth } from './hooks/useAuth'
 import { QrPreviewStage, STAGE_SIZE, type QrPreviewStageHandle } from './components/QrPreviewStage'
 import { ColorPicker } from './components/ColorPicker'
@@ -72,6 +73,7 @@ function App() {
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [formErrors, setFormErrors] = useState<QrFormErrors>({})
   const [preview, setPreview] = useState<PreviewState | null>(null)
   const [clientPreview, setClientPreview] = useState<ClientPreview>({})
   const [copyStatus, setCopyStatus] = useState<'idle' | 'success' | 'error'>('idle')
@@ -179,6 +181,13 @@ function App() {
       setFormError('Сессия недействительна, войдите заново')
       return
     }
+
+    const errors = validateQrForm(form)
+    if (!isFormValid(errors)) {
+      setFormErrors(errors)
+      return
+    }
+    setFormErrors({})
 
     submitAbortRef.current?.abort()
     const controller = new AbortController()
@@ -379,12 +388,13 @@ function App() {
             <label className="field-label" htmlFor="gen-text">Content (text or URL)</label>
             <input
               id="gen-text"
-              className="lum-input"
+              className={`lum-input${formErrors.data ? ' input-error' : ''}`}
               type="text"
               placeholder="https://example.com"
               value={form.text}
               onChange={handleInputChange('text')}
             />
+            {formErrors.data && <p className="field-error">{formErrors.data}</p>}
           </div>
 
           {/* Colors */}
@@ -498,6 +508,9 @@ function App() {
             />
           </div>
 
+          {formErrors.color && <p className="field-error">Foreground: {formErrors.color}</p>}
+          {formErrors.background && <p className="field-error">Background: {formErrors.background}</p>}
+          {formErrors.size && <p className="field-error">Size: {formErrors.size}</p>}
           {formError && <p className="form-error">{formError}</p>}
 
           {/* Action buttons */}

@@ -1098,6 +1098,16 @@
   margin: 0;
 }
 
+.field-error {
+  color: #f87171;
+  font-size: 12px;
+  margin: 2px 0 0;
+}
+
+.input-error {
+  border-color: #f87171 !important;
+}
+
 /* ─── Vault page ────────────────────────────────────────────────── */
 .vault-page {
   padding: 32px 36px 60px;
