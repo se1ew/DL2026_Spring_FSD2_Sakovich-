@@ -20,6 +20,21 @@ export const QrRequestSchema = z.object({
     .string()
     .regex(/^data:image\/png;base64,/, 'precomposedImage must be a PNG data URL')
     .optional(),
+  dynamic: z.boolean().optional().default(false),
+  dynamicUrl: z.string().url('dynamicUrl must be a valid URL').optional(),
+  projectId: z.string().uuid().optional(),
 })
+
+export const PatchQrSchema = z.object({
+  dynamicUrl: z.string().url().nullable().optional(),
+  projectId: z.string().uuid().nullable().optional(),
+})
+
+export const CreateProjectSchema = z.object({
+  name: z.string().min(1, 'name is required').max(100, 'name too long'),
+})
+
+export type PatchQrRequest = z.infer<typeof PatchQrSchema>
+export type CreateProjectRequest = z.infer<typeof CreateProjectSchema>
 
 export type QrRequest = z.infer<typeof QrRequestSchema>

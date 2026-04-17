@@ -13,8 +13,12 @@ import { HISTORY_UPDATED_EVENT, QR_CREATED_EVENT, REUSE_EVENT_NAME } from './con
 import { type QrHistoryItem, type QrFormFields, type ErrorCorrectionLabels, type QrFormErrors } from './types/qr'
 import { validateQrForm, isFormValid } from './utils/validateQrForm'
 import { useAuth } from './hooks/useAuth'
+import { useProjects } from './hooks/useProjects'
 import { QrPreviewStage, STAGE_SIZE, type QrPreviewStageHandle } from './components/QrPreviewStage'
 import { ColorPicker } from './components/ColorPicker'
+import { VCardForm } from './components/VCardForm'
+
+type ContentMode = 'text' | 'vcard'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 const QR_VIEWED_EVENT = 'qr:viewed'
@@ -62,6 +66,7 @@ const normalizeHistoryFormat = (value?: string): QrFormat => (value === 'svg' ? 
 
 function App() {
   const { token } = useAuth()
+  const { projects } = useProjects(token)
   const [form, setForm] = useState<FormState>({
     text: '',
     format: 'png',
@@ -71,6 +76,10 @@ function App() {
     errorCorrectionLevel: 'M',
     margin: 2,
   })
+  const [contentMode, setContentMode] = useState<ContentMode>('text')
+  const [isDynamic, setIsDynamic] = useState(false)
+  const [dynamicTargetUrl, setDynamicTargetUrl] = useState('')
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [formErrors, setFormErrors] = useState<QrFormErrors>({})
@@ -209,6 +218,8 @@ function App() {
           size: Number(form.size),
           margin: Number(form.margin),
           ...(logo ? { precomposedImage: getStageDataURL() ?? undefined } : {}),
+          ...(isDynamic ? { dynamic: true, dynamicUrl: dynamicTargetUrl } : {}),
+          ...(selectedProjectId ? { projectId: selectedProjectId } : {}),
         }),
       })
 
@@ -383,18 +394,64 @@ function App() {
         {/* ── Left: controls ── */}
         <form className="gen-controls" onSubmit={handleSubmit}>
 
+          {/* Content mode toggle */}
+          <div className="content-mode-toggle">
+            <button
+              type="button"
+              className={`mode-btn${contentMode === 'text' ? ' active' : ''}`}
+              onClick={() => setContentMode('text')}
+            >Text / URL</button>
+            <button
+              type="button"
+              className={`mode-btn${contentMode === 'vcard' ? ' active' : ''}`}
+              onClick={() => setContentMode('vcard')}
+            >vCard</button>
+          </div>
+
           {/* Content */}
           <div className="field-group">
-            <label className="field-label" htmlFor="gen-text">Content (text or URL)</label>
-            <input
-              id="gen-text"
-              className={`lum-input${formErrors.data ? ' input-error' : ''}`}
-              type="text"
-              placeholder="https://example.com"
-              value={form.text}
-              onChange={handleInputChange('text')}
-            />
-            {formErrors.data && <p className="field-error">{formErrors.data}</p>}
+            {contentMode === 'text' ? (
+              <>
+                <label className="field-label" htmlFor="gen-text">Content (text or URL)</label>
+                <input
+                  id="gen-text"
+                  className={`lum-input${formErrors.data ? ' input-error' : ''}`}
+                  type="text"
+                  placeholder="https://example.com"
+                  value={form.text}
+                  onChange={handleInputChange('text')}
+                />
+                {formErrors.data && <p className="field-error">{formErrors.data}</p>}
+              </>
+            ) : (
+              <>
+                <label className="field-label">Contact card (vCard)</label>
+                <VCardForm onChange={(vcard) => setForm((p) => ({ ...p, text: vcard }))} />
+              </>
+            )}
+          </div>
+
+          {/* Dynamic QR */}
+          <div className="field-group dynamic-row">
+            <label className="toggle-label">
+              <input
+                type="checkbox"
+                checked={isDynamic}
+                onChange={e => setIsDynamic(e.target.checked)}
+              />
+              <span>Dynamic QR</span>
+              <small>Change target URL anytime without regenerating the QR</small>
+            </label>
+            {isDynamic && (
+              <input
+                className="lum-input"
+                type="url"
+                placeholder="Target URL (e.g. https://example.com)"
+                value={dynamicTargetUrl}
+                onChange={e => setDynamicTargetUrl(e.target.value)}
+                required={isDynamic}
+              />
+            )}
           </div>
 
           {/* Colors */}
@@ -507,6 +564,24 @@ function App() {
               onChange={handleLogoFile}
             />
           </div>
+
+          {/* Project selector */}
+          {projects.length > 0 && (
+            <div className="field-group">
+              <label className="field-label" htmlFor="gen-project">Project (optional)</label>
+              <select
+                id="gen-project"
+                className="lum-select"
+                value={selectedProjectId}
+                onChange={e => setSelectedProjectId(e.target.value)}
+              >
+                <option value="">— None —</option>
+                {projects.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {formErrors.color && <p className="field-error">Foreground: {formErrors.color}</p>}
           {formErrors.background && <p className="field-error">Background: {formErrors.background}</p>}

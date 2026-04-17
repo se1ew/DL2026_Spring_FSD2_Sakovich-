@@ -1108,6 +1108,107 @@
   border-color: #f87171 !important;
 }
 
+/* ─── Content mode toggle ───────────────────────────────────────── */
+.content-mode-toggle {
+  display: flex;
+  gap: 4px;
+  background: rgba(0,0,0,.25);
+  border-radius: 8px;
+  padding: 3px;
+  margin-bottom: 4px;
+}
+.mode-btn {
+  flex: 1;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: #6a9e97;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background .15s, color .15s;
+}
+.mode-btn.active {
+  background: #00695C;
+  color: #fff;
+}
+
+/* ─── vCard form ─────────────────────────────────────────────────── */
+.vcard-form { display: flex; flex-direction: column; gap: 8px; }
+.vcard-row  { display: flex; flex-direction: column; gap: 3px; }
+
+/* ─── Dynamic QR row ─────────────────────────────────────────────── */
+.dynamic-row { gap: 8px !important; }
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #b2dfdb;
+}
+.toggle-label input[type="checkbox"] { accent-color: #00695C; width: 15px; height: 15px; }
+.toggle-label small { color: #6a9e97; font-size: 11px; }
+
+/* ─── Badges ─────────────────────────────────────────────────────── */
+.hist-card-badges { display: flex; gap: 4px; margin-bottom: 4px; flex-wrap: wrap; }
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+}
+.badge-dynamic { background: #00695C; color: #fff; }
+.badge-project { background: #1e4a47; color: #b2dfdb; }
+
+/* ─── Dynamic edit row ───────────────────────────────────────────── */
+.hist-card-dynamic-url {
+  font-size: 11px;
+  color: #00d4aa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 2px 0;
+}
+.dynamic-edit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0;
+}
+.hist-btn-dynamic { color: #00d4aa !important; border-color: #00d4aa !important; }
+
+/* ─── Projects page ──────────────────────────────────────────────── */
+.projects-page {
+  padding: 32px 36px 60px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+.projects-header { margin-bottom: 24px; }
+.projects-header h2 { font-size: 22px; color: #b2dfdb; margin-bottom: 4px; }
+.projects-subtitle { color: #6a9e97; font-size: 14px; }
+.project-create-form { display: flex; gap: 10px; margin-bottom: 16px; }
+.project-create-form .lum-input { flex: 1; }
+.projects-list { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.project-card {
+  background: #112420;
+  border: 1px solid #1e4a47;
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.project-card-info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.project-name { font-size: 15px; font-weight: 600; color: #b2dfdb; }
+.project-count { font-size: 12px; color: #6a9e97; }
+.project-card-actions { display: flex; align-items: center; gap: 8px; }
+
 /* ─── Vault page ────────────────────────────────────────────────── */
 .vault-page {
   padding: 32px 36px 60px;

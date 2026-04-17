@@ -3,10 +3,13 @@ import { redis, buildHistoryCacheKey, buildHistoryCachePattern } from '../lib/re
 import { prisma } from '../lib/prisma'
 import type { QrRequest } from '../types/qr'
 
-export type CreateQrPayload = Omit<QrRequest, 'text' | 'precomposedImage'> & {
+export type CreateQrPayload = Omit<QrRequest, 'text' | 'precomposedImage' | 'dynamic' | 'dynamicUrl' | 'projectId'> & {
+  id?: string
   data: string
   imageUrl: string
   userId: string
+  dynamicUrl?: string
+  projectId?: string
 }
 
 export type HistoryPage = {
@@ -51,6 +54,7 @@ export const qrService = {
   async create(payload: CreateQrPayload) {
     const qr = await prisma.qrCode.create({
       data: {
+        ...(payload.id ? { id: payload.id } : {}),
         data: payload.data,
         color: payload.color,
         background: payload.background,
@@ -60,6 +64,8 @@ export const qrService = {
         margin: payload.margin,
         imageUrl: payload.imageUrl,
         userId: payload.userId,
+        dynamicUrl: payload.dynamicUrl ?? null,
+        projectId: payload.projectId ?? null,
       },
     })
 
@@ -102,6 +108,12 @@ export const qrService = {
     await prisma.qrCode.delete({ where: { id } })
     void invalidateHistoryCache(userId)
     return qr
+  },
+
+  async updateById(id: string, userId: string, patch: { dynamicUrl?: string | null; projectId?: string | null }) {
+    const qr = await prisma.qrCode.findFirst({ where: { id, userId } })
+    if (!qr) return null
+    return prisma.qrCode.update({ where: { id }, data: patch })
   },
 
   async getByIdPublic(id: string) {
